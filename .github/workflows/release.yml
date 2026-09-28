@@ -1,4 +1,4 @@
-name: Release
+﻿name: Release
 
 on:
   push:
@@ -87,7 +87,10 @@ jobs:
       - name: Generer les icones
         run: node scripts/make-icons.mjs
 
-      - name: Build web + sync Capacitor
+      - name: Build web
+        run: npm run build
+
+      - name: Sync Capacitor
         run: npx cap sync android
 
       - name: Restaurer le keystore

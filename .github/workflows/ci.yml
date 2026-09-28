@@ -1,4 +1,4 @@
-name: Verifications
+﻿name: Verifications
 
 on:
   push:
@@ -44,6 +44,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - run: npm ci
       - run: node scripts/make-icons.mjs
+      - run: npm run build
       - run: npx cap sync android
       - working-directory: android
         run: ./gradlew assembleDebug --no-daemon
