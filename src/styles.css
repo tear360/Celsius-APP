@@ -156,7 +156,42 @@ button {
   gap: 10px;
   color: var(--muted);
   font-size: 12px;
-  padding-right: 148px;
+  padding-right: 12px;
+}
+
+/* Controles de fenetre facon Windows 11, Dessines par nous : le overlay natif
+   ne ferme pas la fenetre de facon fiable sur toutes les machines. */
+.caption {
+  display: flex;
+  align-self: stretch;
+  margin-left: 10px;
+  -webkit-app-region: no-drag;
+}
+
+.caption__btn {
+  width: 46px;
+  display: grid;
+  place-items: center;
+  color: var(--text-dim);
+  transition: background 0.12s var(--ease), color 0.12s var(--ease);
+}
+
+.caption__btn:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.caption__btn--close:hover {
+  background: #e81123;
+  color: #fff;
+}
+
+.caption__btn:active {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.caption__btn--close:active {
+  background: #c50f1e;
 }
 
 .body {

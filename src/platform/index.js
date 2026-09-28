@@ -1,4 +1,4 @@
-﻿// Selecteur de bridge : Electron sur Windows, Capacitor sur Android.
+// Selecteur de bridge : Electron sur Windows, Capacitor sur Android.
 import { Capacitor } from '@capacitor/core';
 
 const native = Capacitor.isNativePlatform();
@@ -10,6 +10,8 @@ if (native && isAndroid) {
 } else {
   mod = await import('./electron.js');
 }
+
+const noop = () => {};
 
 export const platform = mod.platform;
 export const isDesktop = mod.isDesktop;
@@ -38,3 +40,6 @@ export const isPackageInstalled = mod.isPackageInstalled ?? (async () => false);
 export const installedVersionOf = mod.installedVersionOf ?? (async () => null);
 export const openInstallSettings = mod.openInstallSettings ?? (async () => {});
 export const exitApp = mod.exitApp ?? (async () => {});
+export const windowAction = mod.windowAction ?? (async () => {});
+export const windowState = mod.windowState ?? (async () => ({ maximized: false }));
+export const onWindowState = mod.onWindowState ?? noop;

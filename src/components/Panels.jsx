@@ -1,7 +1,6 @@
-import React from 'react';
 import { useStore } from '../state/store.jsx';
 import { CONFIG } from '../config.js';
-import { IconExternal, IconInfo, IconRefresh, IconUpdate } from './Icons.jsx';
+import { IconExternal, IconInfo, IconUpdate } from './Icons.jsx';
 
 export function Settings() {
   const { state, saveSettings, refresh, checkSelf, openExternal } = useStore();
@@ -12,68 +11,6 @@ export function Settings() {
 
   return (
     <div className="detail" style={{ maxWidth: 720 }}>
-      <div className="panel">
-        <h3>Catalogue</h3>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <span
-            className={`dot ${source === 'remote' ? '' : source === 'embedded' ? 'dot--busy' : 'dot--off'}`}
-          />
-          <span style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>
-            {source === 'remote'
-              ? 'Catalogue lu depuis le depot GitHub'
-              : source === 'embedded'
-                ? 'Catalogue embarque (mode hors ligne)'
-                : 'Source inconnue'}
-          </span>
-        </div>
-
-        <div className="switch">
-          <div className="switch__text">
-            <b>Utiliser le catalogue distant</b>
-            <span>
-              Le catalogue est lu depuis apps.json dans le depot. Tu peux y ajouter une app sans
-              reconstruire Celsius : tout le monde la recoit au prochain rafraichissement.
-            </span>
-          </div>
-          <button
-            className={`toggle ${s.useRemoteCatalog ? 'toggle--on' : ''}`}
-            onClick={() => saveSettings({ useRemoteCatalog: !s.useRemoteCatalog })}
-            aria-pressed={s.useRemoteCatalog}
-          />
-        </div>
-
-        <div className="field">
-          <label htmlFor="catalog">URL du catalogue</label>
-          <CatalogInput
-            value={s.catalogUrl}
-            onCommit={(value) => saveSettings({ catalogUrl: value })}
-          />
-          <div className="hint">
-            Doit renvoyer un JSON au meme schema que public/apps.json. Valide avec Entree pour
-            appliquer et recharger.
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button className="btn btn--ghost btn--sm" onClick={() => refresh()}>
-            <IconRefresh size={14} /> Recharger
-          </button>
-          <button
-            className="btn btn--ghost btn--sm"
-            onClick={() => openExternal(CONFIG.catalogEditUrl)}
-          >
-            <IconExternal size={14} /> Modifier apps.json
-          </button>
-          <button
-            className="btn btn--ghost btn--sm"
-            onClick={() => saveSettings({ catalogUrl: CONFIG.catalogUrl })}
-            disabled={s.catalogUrl === CONFIG.catalogUrl}
-          >
-            Reinitialiser l'URL
-          </button>
-        </div>
-      </div>
-
       <div className="panel">
         <h3>General</h3>
         <Toggle
@@ -94,23 +31,12 @@ export function Settings() {
           value={s.confirmInstall}
           onChange={(v) => saveSettings({ confirmInstall: v })}
         />
-      </div>
-
-      <div className="panel">
-        <h3>Jeton GitHub (optionnel)</h3>
-        <div className="field" style={{ marginBottom: 8 }}>
-          <input
-            id="token"
-            type="password"
-            value={s.token}
-            placeholder="ghp_…"
-            onChange={(e) => saveSettings({ token: e.target.value.trim() })}
-            spellCheck={false}
-          />          <div className="hint">
-            Necessaire uniquement pour les depots prives, et pour lever la limite de 60 requetes/h
-            de l'API GitHub. Stocke uniquement sur ton appareil, jamais envoye ailleurs.
-          </div>
-        </div>
+        <Toggle
+          label="Demarrer en plein ecran"
+          hint="Ouvre la fenetre en occupe tout l'ecran."
+          value={s.startMaximized}
+          onChange={(v) => saveSettings({ startMaximized: v })}
+        />
       </div>
 
       <div className="panel">
@@ -125,7 +51,7 @@ export function Settings() {
   3. n'importe quel .exe/.msi ->  installeur
   4. "Android" + .apk         ->  APK Android
 
-Surrogate si les assets portent d'autres noms, le champ "assets" de apps.json
+Si les assets portent d'autres noms, le champ "assets" de apps.json
 permet de surcharger ces regles pour une app.`}
         </div>
       </div>
@@ -144,15 +70,20 @@ permet de surcharger ces regles pour une app.`}
             </div>
           </div>
           <div className="stat">
-            <div className="stat__label">Build</div>
-            <div className="stat__value">{state.appInfo?.build || '—'}</div>
-          </div>
-          <div className="stat">
             <div className="stat__label">Apps</div>
             <div className="stat__value">{state.apps.length}</div>
           </div>
+          <div className="stat">
+            <div className="stat__label">Catalogue</div>
+            <div className="stat__value">
+              {source === 'remote' ? 'GitHub' : source === 'embedded' ? 'Inclus' : '—'}
+            </div>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button className="btn btn--ghost btn--sm" onClick={() => refresh()}>
+            Recharger le catalogue
+          </button>
           <button className="btn btn--ghost btn--sm" onClick={() => openExternal(CONFIG.repoUrl)}>
             <IconExternal size={14} /> Code source
           </button>
@@ -190,33 +121,6 @@ permet de surcharger ces regles pour une app.`}
         )}
       </div>
     </div>
-  );
-}
-
-function CatalogInput({ value, onCommit }) {
-  const [draft, setDraft] = React.useState(value);
-  React.useEffect(() => setDraft(value), [value]);
-  const commit = () => {
-    const next = draft.trim();
-    if (next && next !== value) onCommit(next);
-    else setDraft(value);
-  };
-  return (
-    <input
-      id="catalog"
-      type="url"
-      value={draft}
-      spellCheck={false}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') e.currentTarget.blur();
-        if (e.key === 'Escape') {
-          setDraft(value);
-          e.currentTarget.blur();
-        }
-      }}
-    />
   );
 }
 

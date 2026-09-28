@@ -20,9 +20,6 @@ export const KV = {
 export const DEFAULT_SETTINGS = {
   includePrereleases: false,
   autoCheckUpdates: true,
-  useRemoteCatalog: true,
-  catalogUrl: CONFIG.catalogUrl,
-  token: '',
   confirmInstall: true,
-  compactCards: false,
+  startMaximized: false,
 };

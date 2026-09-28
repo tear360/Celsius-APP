@@ -1,4 +1,4 @@
-﻿import React, {
+import {
   createContext,
   useCallback,
   useContext,
@@ -9,7 +9,6 @@
 } from 'react';
 import { CONFIG, DEFAULT_SETTINGS, KV } from '../config.js';
 import {
-  anyUpdate,
   buildAppEntry,
   fetchLatestRelease,
   fetchReleases,
@@ -125,7 +124,6 @@ function enrich(app, settings) {
     sizeLabel: app.size ? formatBytes(app.size) : null,
     iconFallback: initials(app.name),
     iconHue: hueFor(app.id || app.name),
-    needsUpdate: anyUpdate(app),
     hidden: settings.includePrereleases ? false : app.prerelease,
   };
 }
@@ -146,16 +144,16 @@ export function StoreProvider({ children }) {
 
   /* ------------------------------------------------------------------ */
 
-  const loadCatalogSource = useCallback(async (settings) => {
-    const remote = settings.useRemoteCatalog !== false && settings.catalogUrl?.trim();
-    if (remote) {
-      try {
-        const res = await fetch(remote, { cache: 'no-cache' });
-        if (res.ok) return { data: await res.json(), from: 'remote' };
-        throw new Error(`HTTP ${res.status}`);
-      } catch (err) {
-        console.warn('[celsius] catalogue distant indisponible, repli sur la copie embarquee', err);
-      }
+  const loadCatalogSource = useCallback(async () => {
+    try {
+      const res = await fetch(CONFIG.catalogUrl, { cache: 'no-cache' });
+      if (res.ok) return { data: await res.json(), from: 'remote' };
+      throw new Error(`HTTP ${res.status}`);
+    } catch (err) {
+      console.warn(
+        '[celsius] catalogue distant indisponible, repli sur la copie embarquee',
+        err,
+      );
     }
     const res = await fetch('apps.json', { cache: 'no-cache' });
     if (!res.ok) throw new Error('Catalogue embarque introuvable');
@@ -164,13 +162,12 @@ export function StoreProvider({ children }) {
 
   const refresh = useCallback(
     async ({ silent = false } = {}) => {
-      const { settings } = stateRef.current;
       if (!silent) {
         dispatch({ type: 'status', status: 'loading', message: 'Chargement du catalogue…' });
       }
       let source;
       try {
-        const res = await loadCatalogSource(settings);
+        const res = await loadCatalogSource();
         source = res.data;
         dispatch({ type: 'catalogMeta', patch: { source: res.from } });
       } catch (err) {
@@ -186,14 +183,13 @@ export function StoreProvider({ children }) {
 
       const defs = source.apps || [];
       const installedMap = stateRef.current.installed;
-      const token = settings.token || undefined;
 
       const built = await mapLimit(defs, 5, async (def) => {
         let release = null;
         try {
-          release = await fetchLatestRelease(def.repo, { token });
-        } catch {
-          release = null;
+          release = await fetchLatestRelease(def.repo);
+        } catch (err) {
+          console.warn(`[celsius] release inaccessible pour ${def.repo}`, err);
         }
         const installed = {};
         for (const platform of ['windows', 'android']) {
@@ -211,16 +207,13 @@ export function StoreProvider({ children }) {
   );
 
   const loadHistory = useCallback(async (appId) => {
-    const { settings, history } = stateRef.current;
+    const { history } = stateRef.current;
     if (history[appId]) return;
     const app = stateRef.current.apps.find((a) => a.id === appId);
     if (!app) return;
     dispatch({ type: 'busy', key: `history:${appId}`, value: true });
     try {
-      const releases = await fetchReleases(app.repo, {
-        token: settings.token || undefined,
-        perPage: 12,
-      });
+      const releases = await fetchReleases(app.repo, { perPage: 12 });
       dispatch({
         type: 'history',
         patch: { [appId]: releases.map((r) => ({ ...r, body: stripHtml(r.body) })) },
@@ -330,39 +323,6 @@ export function StoreProvider({ children }) {
     dispatch({ type: 'taskRemove', id: taskId });
   }, []);
 
-  const launchApp = useCallback(
-    async (app, targetPlatform) => {
-      const entry = app.platforms[targetPlatform];
-      const rec = entry?.installed;
-      try {
-        if (targetPlatform === 'android' && app.androidPackage) {
-          await bridge.launch({ platform: 'android', packageName: app.androidPackage });
-          return;
-        }
-        if (rec?.path) {
-          await bridge.launch({
-            platform: 'windows',
-            appName: app.name,
-            executablePath: rec.path,
-          });
-          return;
-        }
-        const picked = await bridge.pickExecutable(app.name);
-        if (!picked) return;
-        await bridge.launch({ platform: 'windows', appName: app.name, executablePath: picked });
-        await rememberInstall(app, targetPlatform, {
-          version: app.version,
-          path: picked,
-          assetName: entry?.asset?.name || null,
-        });
-        toast(`Chemin de lancement memorise pour ${app.name}.`, 'success');
-      } catch (err) {
-        toast(err?.message || String(err), 'error');
-      }
-    },
-    [toast],
-  );
-
   const rememberInstall = useCallback(
     async (app, targetPlatform, record) => {
       const key = installKey(app.id, targetPlatform);
@@ -387,6 +347,40 @@ export function StoreProvider({ children }) {
     [refresh],
   );
 
+  const launchApp = useCallback(
+    async (app, targetPlatform) => {
+      const entry = app.platforms[targetPlatform];
+      const rec = entry?.installed;
+      try {
+        if (targetPlatform === 'android' && app.androidPackage) {
+          await bridge.launch({ platform: 'android', packageName: app.androidPackage });
+          return;
+        }
+        const res = await bridge.launch({
+          platform: 'windows',
+          appName: app.name,
+          executablePath: rec?.path || null,
+        });
+        if (res?.cancelled) {
+          toast('Aucun executable trouve pour cette app.', 'info');
+          return;
+        }
+        if (res?.path && res.path !== rec?.path) {
+          // Chemin trouve par l'exploration (ou choisi a la main) : on le garde
+          // pour que les prochains lancements soient instantanes.
+          await rememberInstall(app, targetPlatform, {
+            version: rec?.version || app.version,
+            path: res.path,
+            assetName: rec?.assetName,
+          });
+          if (res.picked) toast(`Chemin de lancement memorise pour ${app.name}.`, 'success');
+        }
+      } catch (err) {
+        toast(err?.message || String(err), 'error');
+      }
+    },
+    [rememberInstall, toast],
+  );
   const markInstalled = useCallback(
     async (appId, targetPlatform, record) => {
       const app = stateRef.current.apps.find((a) => a.id === appId);
@@ -440,7 +434,7 @@ export function StoreProvider({ children }) {
       const next = { ...stateRef.current.settings, ...patch };
       await bridge.kvSet(KV.settings, next);
       dispatch({ type: 'settings', patch });
-      if ('catalogUrl' in patch || 'includePrereleases' in patch || 'token' in patch) {
+      if ('includePrereleases' in patch) {
         await refresh({ silent: true });
       }
       return next;

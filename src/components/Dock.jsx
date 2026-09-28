@@ -1,4 +1,3 @@
-import React from 'react';
 import { useStore } from '../state/store.jsx';
 import { openInstallSettings } from '../platform/index.js';
 import { AppIcon } from './AppIcon.jsx';
@@ -6,7 +5,7 @@ import { IconClose } from './Icons.jsx';
 import { formatBytes } from '../lib/format.js';
 
 export function DownloadDock({ mobile }) {
-  const { state, dispatch, cancelTask } = useStore();
+  const { state, cancelTask } = useStore();
   const tasks = Object.values(state.tasks);
   if (!tasks.length) return null;
   return (

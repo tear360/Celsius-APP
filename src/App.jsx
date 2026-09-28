@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { StoreProvider, useStore } from './state/store.jsx';
 import { TitleBar, Sidebar, BottomNav, TopBar } from './components/Shell.jsx';
 import { Home, Explore, Updates, Library } from './components/Views.jsx';

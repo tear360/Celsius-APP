@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Bridge Electron. Toutes les methodes exposures par electron/preload.cjs
  * sur window.celsiusBridge. En mode dev (serveur Vite) le bridge existe aussi,
  * les chemins sont resolus par le process principal.
@@ -34,6 +34,9 @@ export const pickExecutable = (appName) => required().pickExecutable(appName);
 export const openExternal = (url) => required().openExternal(url);
 export const revealPath = (path) => required().revealPath(path);
 export const systemInfo = () => required().systemInfo();
+export const windowAction = (action) => required().windowAction(action);
+export const windowState = () => required().windowState();
+export const onWindowState = (cb) => bridge?.onWindowState(cb) ?? noopUnsubscribe;
 
 export const checkSelfUpdate = (opts) => required().checkSelfUpdate(opts);
 export const applySelfUpdate = (mode) => required().applySelfUpdate(mode);

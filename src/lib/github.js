@@ -1,4 +1,4 @@
-﻿import { isNewer } from './semver.js';
+import { isNewer } from './semver.js';
 
 const API = 'https://api.github.com';
 const memory = new Map();
@@ -124,12 +124,12 @@ export function buildAppEntry(def, release, installed) {
     size: Object.values(platforms).map((p) => p.asset?.size).find(Boolean) || null,
     downloads: Object.values(platforms).reduce((sum, p) => sum + (p.asset?.downloadCount || 0), 0),
     platforms,
-    history: def.history || [],
+    needsUpdate: anyUpdate(platforms),
     error: release === null ? 'introuvable' : null,
   };
 }
 
-export function anyUpdate(app) {
-  return ['windows', 'android'].some((p) => app.platforms[p]?.status === 'outdated');
+export function anyUpdate(platforms) {
+  return ['windows', 'android'].some((p) => platforms[p]?.status === 'outdated');
 }
 

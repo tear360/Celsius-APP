@@ -1,8 +1,8 @@
 {
   "name": "celsius-app",
   "productName": "Celsius",
-  "version": "1.0.0",
-  "description": "Celsius — un store d'applications pour Windows et Android. Installe, met a jour et lance tes apps depuis les GitHub Releases.",
+  "version": "1.0.1",
+  "description": "Celsius - un store d'applications pour Windows et Android. Installe, met a jour et lance tes apps depuis les GitHub Releases.",
   "author": {
     "name": "TEAR36",
     "email": "tear36.mc@gmail.com"
@@ -20,12 +20,14 @@
     "dev:electron": "cross-env CELSIUS_DEV_SERVER=http://localhost:5173 electron .",
     "build": "vite build",
     "preview": "vite preview",
+    "lint": "eslint .",
+    "check": "npm run lint && npm test && npm run build",
+    "test": "node scripts/test-semver.mjs && node scripts/test-resolve.cjs && node scripts/test-catalog.mjs",
     "cap:sync": "npm run build && cap sync android",
     "android:apk": "npm run cap:sync && cd android && gradlew assembleRelease",
-    "dist:win": "npm run build && electron-builder --win nsis --publish never",
-    "dist:all": "npm run build && electron-builder --win nsis --linux AppImage --publish never",
-    "assets": "capacitor-assets generate --iconBackgroundColor '#0b1020' --splashBackgroundColor '#0b1020'",
-    "release": "node scripts/release.mjs"
+    "dist:win": "npm run build && electron-builder --config electron-builder.config.mjs --win nsis --publish never",
+    "icons": "node scripts/make-icons.mjs",
+    "assets": "capacitor-assets generate --iconBackgroundColor #0b1020 --splashBackgroundColor #070a16"
   },
   "dependencies": {
     "electron-updater": "^6.8.9",
@@ -42,10 +44,14 @@
     "@capacitor/preferences": "^8.0.1",
     "@capacitor/splash-screen": "^8.0.2",
     "@capacitor/status-bar": "^8.0.3",
+    "@eslint/js": "^10.0.1",
     "@vitejs/plugin-react": "^6.1.1",
     "cross-env": "^10.1.0",
     "electron": "^44.4.5",
     "electron-builder": "^26.15.3",
+    "eslint": "^10.11.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.12.0",
     "sharp": "^0.35.5",
     "vite": "^8.3.1"
   }

@@ -48,9 +48,9 @@ Si tes assets portent d'autres noms, surcharge les regles pour cette app dans
 ## Gerer le catalogue
 
 Le catalogue vit dans **`public/apps.json`** du depot. Celsius le lit **depuis GitHub**
-(`raw.githubusercontent.com/.../public/apps.json`) : tu pushes, les clients qui rafraichissent
-voient la nouvelle app. Il reste une copie embarquee dans l'app comme repli hors ligne
-(bascule dans **Reglages → Utiliser le catalogue distant**).
+(`raw.githubusercontent.com/.../public/apps.json`,URL definie dans `src/config.js`) : tu pushes,
+les clients qui rafraichissent voient la nouvelle app. Il reste une copie embarquee dans l'app
+comme repli hors ligne, et un indicateur dans les reglages indique laquelle est utilisee.
 
 ### Ajouter une application
 
@@ -119,12 +119,28 @@ plus un bloc `<queries>` pour la visibilite des packages (Android 11+).
 
 ## Integration Windows
 
-- Fenetre sans chrome avec **controles natifs** (overlay `titleBarOverlay`), zone de glisser
+- Fenetre sans chrome avec **contrôles de fenêtre dessinés par l'app** (réduire / agrandir /
+  fermer, style Windows 11) et zone de glisser. Le `titleBarOverlay` natif a été abandonné : sur
+  certaines machines son bouton de fermeture ne faisait que réduire la fenêtre au lieu de quitter.
+  La fermeture appelle `destroy()` puis `app.quit()` : aucun processus ne survit.
 - Raccourcis **Start Menu** et **Bureau**, dossier de menu `TEAR36`
-- Entree dans **Parametres → Applications → Celsius** (desinstalleur NSIS)
+- Entrée dans **Paramètres → Applications → Celsius** (désinstalleur NSIS)
 - Installateur **par utilisateur** (pas d'UAC), dossier au choix, **français / anglais**
-- `app.setAppUserModelId('com.tear360.celsius')` : regroupement de barre des taches et notifications
-- Protocole `app://bundle/` interne (aucun acces disque depuis le renderer)
+- `app.setAppUserModelId('com.tear360.celsius')` : regroupement de barre des tâches et notifications
+- Protocole `app://bundle/` interne (aucun accès disque depuis le renderer)
+
+### Lancement d'une application installée
+
+Un installeur `.exe` téléchargé n'est **jamais** mémorisé comme chemin d'application : le dossier
+d'installation n'existe qu'une fois l'assistant terminé. Au moment du lancement, `electron/lib/resolve.cjs`
+explore `%LOCALAPPDATA%\Programs`, `%LOCALAPPDATA%`, `Program Files` et `Program Files (x86)` :
+
+- les installeurs et désinstalleurs (`*Setup*`, `*Installer*`, `unins*`, …) sont exclus ;
+- le nom du binaire prime sur le nom du dossier (`QuizRevise-v1.4.5.exe` bat `unins000.exe`) ;
+- la comparaison ignore casse, accents et séparateurs ;
+- si rien n'est trouvé, un sélecteur de fichier s'ouvre **une seule fois** et le chemin est mémorisé.
+
+C'est ce mécanisme qui évite de retomber sur l'installeur au clic sur « Lancer ».
 
 ---
 
@@ -167,15 +183,32 @@ Le workflow construit l'installateur Windows et l'APK Android, puis cree la rele
 
 ```bash
 npm install
-npm run dev                      # Vite seul (le store n'a pas de bridge natif)
-npm run dev:electron             # Vite + Electron (les deux terminaux)
-npm run build                    # bundle web -> dist/
-npm run cap:sync                 # build + copie vers android/
-node scripts/make-icons.mjs      # icon.png / icon.ico / mipmaps / splash
+npm run check                     # lint + tests + build  (a lancer avant chaque push)
 
-npm run android:apk              # APK release signe (variables CELSIUS_* requises)
-powershell -File scripts/build-win.ps1   # installateur Windows -> release/
+npm run dev                       # Vite seul (le store n'a pas de bridge natif)
+npm run dev:electron              # Vite + Electron (les deux terminaux)
+npm run build                     # bundle web -> dist/
+npm run cap:sync                  # build + copie vers android/
+node scripts/make-icons.mjs       # icon.png / icon.ico / mipmaps / splash
+
+npm run android:apk               # APK release signe (variables CELSIUS_* requises)
+powershell -File scripts/build-win.ps1    # installateur Windows -> release/
 ```
+
+### Tests
+
+`npm test` execute trois suites, sans dependance externe :
+
+| Suite | Couverture |
+| --- | --- |
+| `scripts/test-semver.mjs` | comparaison de versions, pre-releases, entrees invalides |
+| `scripts/test-resolve.cjs` | resolution de l'executable installe (8 scenarios NSIS / Program Files / portable) |
+| `scripts/test-catalog.mjs` | selection des assets, statuts installed / a jour / MAJ, catalogue invalide |
+
+`npm run lint` applique ESLint avec `no-use-before-define` et les regles de hooks React : un
+composant qui lit une variable declaree plus bas entraine une erreur TDZ au premier rendu et
+l'application demarre avec une page blanche sans message — c'est exactement le piege que ces
+regles bloquent.
 
 Variables pour signer l'APK en local :
 

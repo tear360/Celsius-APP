@@ -1,4 +1,4 @@
-﻿name: Verifications
+name: Verifications
 
 on:
   push:
@@ -10,6 +10,19 @@ permissions:
   contents: read
 
 jobs:
+  tests:
+    name: Lint + tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+
   web:
     name: Build web
     runs-on: ubuntu-latest

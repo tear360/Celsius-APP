@@ -5,6 +5,7 @@ const os = require('node:os');
 const { spawn } = require('node:child_process');
 const { JsonStore } = require('./lib/json-store.cjs');
 const { downloadToFile, safeFileName } = require('./lib/downloader.cjs');
+const { findInstalledExecutable } = require('./lib/resolve.cjs');
 const updater = require('./lib/updater.cjs');
 
 const APP_ID = 'com.tear360.celsius';
@@ -43,13 +44,6 @@ const MIME = {
   '.ttf': 'font/ttf',
   '.map': 'application/json',
 };
-
-const normalize = (s) =>
-  String(s || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '');
 
 const send = (channel, payload) => {
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -90,56 +84,18 @@ async function expandZip(zipPath, destDir) {
   throw new Error('Extraction ZIP non geree sur cette plateforme');
 }
 
-function findDeep(dir, depth = 3) {
-  const out = [];
-  const walk = (d, level) => {
-    if (level > depth) return;
-    let entries = [];
-    try {
-      entries = fs.readdirSync(d, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const e of entries) {
-      const full = path.join(d, e.name);
-      if (e.isDirectory()) walk(full, level + 1);
-      else if (/\.exe$/i.test(e.name)) out.push(full);
-    }
-  };
-  walk(dir, 0);
-  return out;
-}
-
-function resolveInstalledExe(appName, knownPath) {
-  if (knownPath && fs.existsSync(knownPath)) return knownPath;
-  const target = normalize(appName);
-  const roots = [
+/** Racines ou Windows installe des logiciels. */
+function installRoots() {
+  return [
     path.join(app.getPath('appData'), 'Programs'),
     process.env.LOCALAPPDATA,
     process.env.ProgramFiles,
     process.env['ProgramFiles(x86)'],
   ].filter(Boolean);
+}
 
-  for (const root of roots) {
-    let entries = [];
-    try {
-      entries = fs.readdirSync(root, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
-      if (!normalize(entry.name).includes(target) && !target.includes(normalize(entry.name))) continue;
-      const full = path.join(root, entry.name);
-      const exes = findDeep(full, 2).filter((p) => {
-        const base = normalize(path.basename(p, '.exe'));
-        const parent = normalize(path.basename(path.dirname(p)));
-        return base.includes(target) || parent.includes(target) || target.includes(parent);
-      });
-      if (exes.length) return exes.sort((a, b) => a.length - b.length)[0];
-    }
-  }
-  return null;
+function resolveInstalledExe(appName, knownPath) {
+  return findInstalledExecutable(appName, installRoots(), knownPath);
 }
 
 /* ------------------------------------------------------------- protocol */
@@ -203,12 +159,6 @@ function createWindow() {
     minHeight: 620,
     show: false,
     frame: false,
-    titleBarStyle: 'hidden',
-    titleBarOverlay: {
-      color: '#070a16',
-      symbolColor: '#8b93b0',
-      height: 44,
-    },
     backgroundColor: '#070a16',
     autoHideMenuBar: true,
     webPreferences: {
@@ -229,7 +179,13 @@ function createWindow() {
   mainWindow.once('ready-to-show', () => {
     if (settings.startMaximized) mainWindow.maximize();
     mainWindow.show();
+    sendWindowState();
   });
+
+  mainWindow.on('maximize', sendWindowState);
+  mainWindow.on('unmaximize', sendWindowState);
+  mainWindow.on('enter-full-screen', sendWindowState);
+  mainWindow.on('leave-full-screen', sendWindowState);
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -249,6 +205,11 @@ function createWindow() {
   });
 
   return mainWindow;
+}
+
+function sendWindowState() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  send('celsius:windowState', { maximized: mainWindow.isMaximized() });
 }
 
 /* ------------------------------------------------------------ downloads */
@@ -296,7 +257,10 @@ async function runTask(task) {
         windowsHide: false,
       });
       child.unref();
-      launchPath = resolveInstalledExe(task.appName, null) || dest;
+      // On ne memorise PAS l'installateur comme etant l'application : le dossier
+      // d'installation n'existe qu'une fois l'assistant termine. Le vrai chemin
+      // sera recherche au moment du lancement (voir celsius:launch).
+      launchPath = null;
     } else {
       shell.showItemInFolder(dest);
     }
@@ -348,7 +312,6 @@ async function manualSelfUpdate() {
   if (!asset) throw new Error('Aucun installeur Windows dans la release');
   const dest = path.join(app.getPath('temp'), 'Celsius', safeFileName(asset.name));
   const controller = new AbortController();
-  manualSelfController = controller;
   await downloadToFile(
     asset.browser_download_url,
     dest,
@@ -362,6 +325,15 @@ async function manualSelfUpdate() {
 }
 
 /* ----------------------------------------------------------------- ipc */
+
+const pickExecutable = (appName) =>
+  dialog
+    .showOpenDialog(mainWindow, {
+      title: `Choisir l'executable de ${appName || "l'application"}`,
+      properties: ['openFile'],
+      filters: [{ name: 'Executable', extensions: ['exe', 'bat', 'cmd', 'lnk'] }],
+    })
+    .then((res) => (res.canceled || !res.filePaths[0] ? null : res.filePaths[0]));
 
 function registerIpc() {
   ipcMain.handle('celsius:info', () => ({
@@ -414,26 +386,23 @@ function registerIpc() {
     if (payload.platform === 'android') {
       throw new Error("Le lancement d'une app Android n'a pas de sens depuis Windows");
     }
-    let target = payload.executablePath;
-    if (!target) throw new Error("Chemin de l'executable inconnu");
-    if (!fs.existsSync(target)) {
-      const found = resolveInstalledExe(payload.appName || path.basename(target, '.exe'), null);
-      if (found) target = found;
+    const appName = payload.appName || '';
+    let target = resolveInstalledExe(appName, payload.executablePath);
+
+    if (!target) {
+      // Aucun binaire trouve : on laisse l'utilisateur designer lui-meme l'executable,
+      // le chemin est ensuite memorise pour les lancements suivants.
+      const picked = await pickExecutable(appName);
+      if (!picked) return { cancelled: true };
+      target = picked;
+      return { path: target, picked: true };
     }
     const err = await shell.openPath(target);
     if (err) throw new Error(err);
     return { path: target };
   });
 
-  ipcMain.handle('celsius:pickExecutable', async (_e, appName) => {
-    const res = await dialog.showOpenDialog(mainWindow, {
-      title: `Choisir l'executable de ${appName || "l'application"}`,
-      properties: ['openFile'],
-      filters: [{ name: 'Executable', extensions: ['exe', 'bat', 'cmd', 'lnk'] }],
-    });
-    if (res.canceled || !res.filePaths[0]) return null;
-    return res.filePaths[0];
-  });
+  ipcMain.handle('celsius:pickExecutable', (_e, appName) => pickExecutable(appName));
 
   ipcMain.handle('celsius:uninstall', async (_e, payload) => {
     if (payload.executablePath) {
@@ -517,6 +486,30 @@ function registerIpc() {
   ipcMain.handle('celsius:clipboardWrite', (_e, text) => {
     clipboard.writeText(String(text || ''));
     return true;
+  });
+
+  /* ------------------------------------------------- controles de fenetre */
+
+  ipcMain.handle('celsius:window', (_e, action) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return false;
+    switch (action) {
+      case 'minimize':
+        mainWindow.minimize();
+        return true;
+      case 'maximize':
+        if (mainWindow.isMaximized()) mainWindow.unmaximize();
+        else mainWindow.maximize();
+        return true;
+      case 'close':
+        // destroy() et non close() : on garantit la fermeture reelle de la fenetre
+        // et la sortie du processus, sans dependre des handlers 'close'.
+        mainWindow.destroy();
+        return true;
+      case 'state':
+        return { maximized: mainWindow.isMaximized() };
+      default:
+        return false;
+    }
   });
 }
 

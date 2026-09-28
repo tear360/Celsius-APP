@@ -1,4 +1,3 @@
-import React from 'react';
 import { useStore } from '../state/store.jsx';
 import { AppIcon } from './AppIcon.jsx';
 import { IconDownload, IconPlay, IconStar } from './Icons.jsx';

@@ -1,4 +1,3 @@
-import React from 'react';
 import { useStore } from '../state/store.jsx';
 import { AppCard } from './AppCard.jsx';
 import { IconBox, IconSearch, IconUpdate } from './Icons.jsx';
@@ -141,7 +140,7 @@ export function Explore({ mobile, openApp }) {
 }
 
 export function Updates({ openApp }) {
-  const { updates, dispatch } = useStore();
+  const { updates } = useStore();
   return (
     <div className="section">
       <div className="section__head">

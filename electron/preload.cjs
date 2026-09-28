@@ -29,7 +29,11 @@ contextBridge.exposeInMainWorld('celsiusBridge', {
 
   clipboardWrite: (text) => ipcRenderer.invoke('celsius:clipboardWrite', text),
 
+  windowAction: (action) => ipcRenderer.invoke('celsius:window', action),
+  windowState: () => ipcRenderer.invoke('celsius:window', 'state'),
+
   onDownloadProgress: on('celsius:download'),
   onTaskState: on('celsius:task'),
   onSelfUpdateEvent: on('celsius:selfupdate'),
+  onWindowState: on('celsius:windowState'),
 });

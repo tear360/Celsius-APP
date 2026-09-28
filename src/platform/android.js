@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Bridge Android (Capacitor). S'appuie sur @capacitor/app, @capacitor/preferences
  * et le plugin natif "Celsius" (android/app/src/main/java/.../CelsiusPlugin.java)
  * qui gere le telechargement, l'installation d'APK et le lancement d'une app.
@@ -87,14 +87,14 @@ export async function cancel(taskId) {
   return Celsius.cancelDownload({ taskId });
 }
 
-export async function launch({ platform: target, packageName, executablePath }) {
+export async function launch({ platform: target, packageName }) {
   if (target !== 'android' || !packageName) {
     throw new Error('Package Android inconnu pour cette app');
   }
   return Celsius.launchPackage({ packageName });
 }
 
-export async function uninstall({ appId, platform: target, packageName }) {
+export async function uninstall({ platform: target, packageName }) {
   if (target !== 'android' || !packageName) throw new Error('Package Android inconnu');
   return Celsius.uninstallPackage({ packageName });
 }

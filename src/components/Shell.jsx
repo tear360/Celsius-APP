@@ -1,8 +1,16 @@
-import React from 'react';
+import { useEffect, useState } from 'react';
 import { CelsiusMark, IconGrid, IconHome, IconLibrary, IconSearch, IconSettings, IconUpdate } from './Icons.jsx';
 import { CONFIG } from '../config.js';
+import { windowAction, windowState, onWindowState } from '../platform/index.js';
 
 export function TitleBar({ version, updateAvailable }) {
+  const [maximized, setMaximized] = useState(false);
+
+  useEffect(() => {
+    windowState().then((s) => setMaximized(Boolean(s?.maximized))).catch(() => {});
+    return onWindowState((s) => setMaximized(Boolean(s?.maximized)));
+  }, []);
+
   return (
     <div className="titlebar">
       <div className="titlebar__brand">
@@ -24,6 +32,57 @@ export function TitleBar({ version, updateAvailable }) {
       <div className="titlebar__meta">
         {updateAvailable && <span className="badge badge--update">MAJ dispo</span>}
         <span>v{version}</span>
+      </div>
+      <div className="caption">
+        <button
+          className="caption__btn"
+          onClick={() => windowAction('minimize')}
+          title="Reduire"
+          aria-label="Reduire"
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+            <path d="M0 5h10" stroke="currentColor" strokeWidth="1" />
+          </svg>
+        </button>
+        <button
+          className="caption__btn"
+          onClick={() => windowAction('maximize')}
+          title={maximized ? 'Restaurer' : 'Agrandir'}
+          aria-label={maximized ? 'Restaurer' : 'Agrandir'}
+        >
+          {maximized ? (
+            <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+              <path
+                d="M2.5 2.5h5v5h-5z M0.5 0.5h5v5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1"
+              />
+            </svg>
+          ) : (
+            <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+              <rect
+                x="0.5"
+                y="0.5"
+                width="9"
+                height="9"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1"
+              />
+            </svg>
+          )}
+        </button>
+        <button
+          className="caption__btn caption__btn--close"
+          onClick={() => windowAction('close')}
+          title="Fermer"
+          aria-label="Fermer"
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+            <path d="M0 0l10 10M10 0L0 10" stroke="currentColor" strokeWidth="1" />
+          </svg>
+        </button>
       </div>
     </div>
   );
