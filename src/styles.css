@@ -816,6 +816,11 @@ button {
   max-width: 940px;
 }
 
+/* Les boutons ne doivent pas s'etirer sur toute la largeur du conteneur flex */
+.detail > .btn {
+  align-self: flex-start;
+}
+
 .detail__hero {
   display: flex;
   gap: 24px;
