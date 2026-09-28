@@ -1,0 +1,82 @@
+name: Verifications
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: Build web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/make-icons.mjs
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: dist
+          retention-days: 7
+
+  android:
+    name: Compile l'APK (debug)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: npm ci
+      - run: node scripts/make-icons.mjs
+      - run: npx cap sync android
+      - working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 7
+
+  catalogue:
+    name: Valider apps.json
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: JSON valide + champs obligatoires
+        run: |
+          node -e "
+            const c = require('./public/apps.json');
+            if (!Array.isArray(c.apps)) throw new Error('apps doit etre un tableau');
+            const ids = new Set();
+            for (const a of c.apps) {
+              for (const k of ['id','name','repo']) {
+                if (!a[k]) throw new Error('champ manquant: ' + k);
+              }
+              if (!/^[^/]+\/[^/]+$/.test(a.repo)) throw new Error('repo invalide: ' + a.repo);
+              if (ids.has(a.id)) throw new Error('id duplique: ' + a.id);
+              ids.add(a.id);
+              for (const plat of ['windows','android']) {
+                for (const r of (a.assets?.[plat] || [])) {
+                  try { new RegExp(r.match, 'i'); }
+                  catch { throw new Error('regex invalide pour ' + a.id + '/' + plat + ': ' + r.match); }
+                }
+              }
+            }
+            console.log('OK - ' + c.apps.length + ' app(s) valide(s)');
+          "

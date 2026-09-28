@@ -1,0 +1,185 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag a publier (ex: v1.0.0)'
+        required: true
+      prerelease:
+        type: boolean
+        description: 'Marquer comme pre-release'
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+jobs:
+  windows:
+    name: Windows (installateur NSIS)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Installer les dependances
+        run: npm ci
+
+      - name: Generer les icones
+        run: node scripts/make-icons.mjs
+
+      - name: Build web
+        run: npm run build
+
+      - name: Packaging electron-builder
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          npx electron-builder
+          --config electron-builder.config.mjs
+          --win nsis
+          --publish never
+
+      - name: Collecter les artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: |
+            release/Celsius-Setup-*.exe
+            release/latest.yml
+          retention-days: 30
+
+  android:
+    name: Android (APK)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Installer les dependances
+        run: npm ci
+
+      - name: Generer les icones
+        run: node scripts/make-icons.mjs
+
+      - name: Build web + sync Capacitor
+        run: npx cap sync android
+
+      - name: Restaurer le keystore
+        id: keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::warning::Aucun secret ANDROID_KEYSTORE_BASE64 : l'APK sera signe avec la cle de debug."
+            exit 0
+          fi
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/celsius-release.jks"
+          echo "path=$RUNNER_TEMP/celsius-release.jks" >> "$GITHUB_OUTPUT"
+
+      - name: Compiler l'APK release
+        working-directory: android
+        env:
+          CELSIUS_KEYSTORE_PATH: ${{ steps.keystore.outputs.path }}
+          CELSIUS_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          CELSIUS_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          CELSIUS_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$CELSIUS_KEYSTORE_PATH" ]; then
+            ./gradlew assembleRelease --no-daemon
+          else
+            ./gradlew assembleRelease --no-daemon \
+              -Pandroid.injects.signing.store.file="$CELSIUS_KEYSTORE_PATH"
+          fi
+
+      - name: Verifier la signature
+        run: |
+          $ANDROID_HOME/build-tools/*/apksigner verify --print-certs \
+            android/app/build/outputs/apk/release/app-release.apk || true
+
+      - name: Collecter l'APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 30
+
+  publish:
+    name: Publier la release GitHub
+    needs: [windows, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Recuperer les artefacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Determiner la version et renommer
+        id: meta
+        run: |
+          VERSION="${TAG#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          WIN=$(find artifacts/windows-installer -name 'Celsius-Setup-*.exe' | head -1)
+          LATEST=$(find artifacts/windows-installer -name 'latest.yml' | head -1)
+          APK=$(find artifacts/android-apk -name 'app-release.apk' | head -1)
+          mkdir -p publish
+          if [ -n "$WIN" ]; then cp "$WIN" "publish/Celsius-Setup-$VERSION.exe"; fi
+          if [ -n "$LATEST" ]; then cp "$LATEST" "publish/latest.yml"; fi
+          if [ -n "$APK" ]; then cp "$APK" "publish/Celsius-$VERSION.apk"; fi
+          ls -la publish
+
+      - name: Creer la release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: Celsius ${{ steps.meta.outputs.version }}
+          draft: false
+          prerelease: ${{ inputs.prerelease || contains(env.TAG, '-') }}
+          files: |
+            publish/Celsius-Setup-${{ steps.meta.outputs.version }}.exe
+            publish/Celsius-${{ steps.meta.outputs.version }}.apk
+            publish/latest.yml
+          body: |
+            ## Celsius ${{ steps.meta.outputs.version }}
+
+            | Plateforme | Fichier |
+            | --- | --- |
+            | Windows | `Celsius-Setup-${{ steps.meta.outputs.version }}.exe` |
+            | Android | `Celsius-${{ steps.meta.outputs.version }}.apk` |
+
+            **Installation Windows** : lance l'installateur. Raccourcis Start Menu + Bureau.
+            Celsius verifie `latest.yml` et propose la mise a jour automatiquement.
+
+            **Installation Android** : active « installer des apps inconnues » pour Celsius,
+            ouvre l'APK et confirme. Les futures versions s'installent depuis le store.
+
+            ### Mise a jour de Celsius lui-meme
+            - Windows : `electron-updater` (telechargement depuis cette release, redemarrage sur place)
+            - Android : telechargement de l'APK de la release puis ouverture de l'instalateur systeme

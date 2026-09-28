@@ -1,0 +1,39 @@
+# Dependances
+node_modules/
+.pnp
+.pnp.js
+
+# Builds
+dist/
+release/
+android/app/build/
+android/build/
+android/.gradle/
+android/capacitor-cordova-android-plugins/build/
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+android/local.properties
+.cache/
+
+# Secrets de signature Android : NE JAMAIS commiter
+keys/
+*.jks
+*.keystore
+google-services.json
+
+# Logs & temporaires
+*.log
+build-apk-out.txt
+build-win-out.txt
+build-win-err.txt
+gradle-release.log
+electron-test.*
+*.tsbuildinfo
+
+# Editeurs / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

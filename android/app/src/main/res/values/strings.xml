@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Celsius</string>
+    <string name="title_activity_main">Celsius</string>
+    <string name="package_name">com.tear360.celsius</string>
+    <string name="custom_url_scheme">com.tear360.celsius</string>
+</resources>

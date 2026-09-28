@@ -1,0 +1,25 @@
+{
+  "appId": "com.tear360.celsius",
+  "appName": "Celsius",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#070a16",
+    "webContentsDebuggingEnabled": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": false,
+      "backgroundColor": "#070a16",
+      "androidSplashResourceName": "splash",
+      "showSpinner": false,
+      "splashFullScreen": false,
+      "splashImmersive": false
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#070a16",
+      "overlaysWebView": false
+    }
+  }
+}

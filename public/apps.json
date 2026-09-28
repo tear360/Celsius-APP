@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "store": {
+    "name": "Celsius",
+    "tagline": "Le store d'apps de TEAR36",
+    "owner": "tear360",
+    "catalogUrl": ""
+  },
+  "categories": [
+    "Education",
+    "Utilitaires",
+    "Multimedia",
+    "Jeux",
+    "Social",
+    "Developpement",
+    "Divers"
+  ],
+  "apps": [
+    {
+      "id": "quizrevise",
+      "name": "QuizRevise",
+      "repo": "tear360/QuizRevise",
+      "category": "Education",
+      "tagline": "Revision type Quizlet : flashcards, QCM et stats",
+      "description": "QuizRevise est une application Android de revision par fiches.\n\n- Mode flashcards avec repetition espacee\n- QCM a choix unique ou multiple\n- Statistiques de progression et taux de reussite\n- Sauvegarde locale de tes collections\n- Mise a jour automatique via GitHub Releases\n\nDisponible sur Android, Windows, Linux et iOS.",
+      "icon": "https://raw.githubusercontent.com/tear360/QuizRevise/main/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png",
+      "androidPackage": "com.leov.quizrevise",
+      "website": "https://github.com/tear360/QuizRevise",
+      "assets": {
+        "windows": [
+          { "match": "Windows-Setup-.*\\.exe$", "kind": "installer" },
+          { "match": "Windows-.*\\.zip$", "kind": "portable" },
+          { "match": "\\.exe$", "kind": "installer" },
+          { "match": "\\.msi$", "kind": "installer" }
+        ],
+        "android": [
+          { "match": "Android-.*\\.apk$", "kind": "apk" },
+          { "match": "\\.apk$", "kind": "apk" }
+        ]
+      }
+    }
+  ]
+}

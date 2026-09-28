@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1b1436" />
+      <stop offset="55%" stop-color="#120c24" />
+      <stop offset="100%" stop-color="#0a0817" />
+    </linearGradient>
+    <linearGradient id="thermal" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0%" stop-color="#ffc46b" />
+      <stop offset="38%" stop-color="#ff8a4c" />
+      <stop offset="68%" stop-color="#ff4d6d" />
+      <stop offset="100%" stop-color="#b14aff" />
+    </linearGradient>
+    <linearGradient id="glyph" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#ffe9df" />
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.32" r="0.62">
+      <stop offset="0%" stop-color="#ff5f6d" stop-opacity="0.42" />
+      <stop offset="100%" stop-color="#ff5f6d" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="228" fill="url(#bg)" />
+  <rect width="1024" height="1024" rx="228" fill="url(#glow)" />
+
+  <g opacity="0.5">
+    <rect x="96" y="536" width="832" height="10" rx="5" fill="url(#thermal)" opacity="0.85" />
+  </g>
+  <g opacity="0.28">
+    <rect x="96" y="606" width="832" height="8" rx="4" fill="url(#thermal)" />
+  </g>
+  <g opacity="0.16">
+    <rect x="96" y="668" width="832" height="6" rx="3" fill="url(#thermal)" />
+  </g>
+
+  <g transform="translate(0 -18)">
+    <path
+      d="M628 340a214 214 0 1 0 0 260"
+      fill="none"
+      stroke="url(#glyph)"
+      stroke-width="104"
+      stroke-linecap="round"
+    />
+    <circle cx="694" cy="452" r="66" fill="url(#thermal)" />
+  </g>
+</svg>
