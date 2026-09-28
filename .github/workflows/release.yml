@@ -113,6 +113,7 @@ jobs:
           CELSIUS_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           CELSIUS_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
+          chmod +x gradlew
           if [ -z "$CELSIUS_KEYSTORE_PATH" ]; then
             ./gradlew assembleRelease --no-daemon
           else

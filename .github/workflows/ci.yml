@@ -46,7 +46,11 @@ jobs:
       - run: node scripts/make-icons.mjs
       - run: npm run build
       - run: npx cap sync android
-      - working-directory: android
+      - name: Rendre gradlew executable
+        working-directory: android
+        run: chmod +x gradlew
+      - name: Compiler l'APK debug
+        working-directory: android
         run: ./gradlew assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
         with:
