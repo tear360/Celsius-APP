@@ -6,6 +6,7 @@ const { spawn } = require('node:child_process');
 const { JsonStore } = require('./lib/json-store.cjs');
 const { downloadToFile, safeFileName } = require('./lib/downloader.cjs');
 const { findInstalledExecutable } = require('./lib/resolve.cjs');
+const { readProductVersion } = require('./lib/version.cjs');
 const updater = require('./lib/updater.cjs');
 
 const APP_ID = 'com.tear360.celsius';
@@ -353,6 +354,37 @@ function registerIpc() {
     home: os.homedir(),
     node: process.versions.node,
   }));
+
+  /* --------------------------------------- re-detection sur le disque --- */
+
+  ipcMain.handle('celsius:stateInfo', () => ({
+    path: store?.location || null,
+    degraded: Boolean(store?.degraded),
+  }));
+
+  /**
+   * Retrouve sur le disque les applications du catalogue deja installees.
+   * Sert de filet de securite : si l'etat a ete perdu (desinstallation
+   * manuelle, nettoyage, fichier remplace), la bibliotheque se reconstruit
+   * sans obliger l'utilisateur a reinstaller quoi que ce soit.
+   */
+  ipcMain.handle('celsius:detectInstalled', async (_e, list) => {
+    const roots = installRoots();
+    const items = Array.isArray(list) ? list.slice(0, 100) : [];
+    const found = [];
+    for (const item of items) {
+      if (!item?.name) continue;
+      const exe = findInstalledExecutable(item.name, roots, null);
+      if (!exe) continue;
+      found.push({
+        id: item.id,
+        platform: 'windows',
+        path: exe,
+        version: await readProductVersion(exe),
+      });
+    }
+    return found;
+  });
 
   ipcMain.handle('celsius:kvGet', (_e, key) => store.get(key) ?? null);
   ipcMain.handle('celsius:kvSet', (_e, key, value) => store.set(key, value));

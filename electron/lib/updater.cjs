@@ -64,7 +64,9 @@ async function start({ download = false } = {}) {
 }
 
 function quitAndInstall() {
-  setImmediate(() => autoUpdater.quitAndInstall(false, true));
+  // (isSilent, isForceRunAfter) : sans /S l'assistant NSIS s'ouvre a chaque
+  // mise a jour, ce qui donne l'impression d'une reinstalle a l'utilisateur.
+  setImmediate(() => autoUpdater.quitAndInstall(true, true));
 }
 
 const isReady = () => ready && supported();

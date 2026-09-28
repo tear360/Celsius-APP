@@ -11,7 +11,6 @@ import { CONFIG, DEFAULT_SETTINGS, KV } from '../config.js';
 import {
   buildAppEntry,
   fetchLatestRelease,
-  fetchReleases,
 } from '../lib/github.js';
 import { formatBytes, initials, hueFor, stripHtml } from '../lib/format.js';
 import * as bridge from '../platform/index.js';
@@ -22,22 +21,21 @@ const initialState = {
   booted: false,
   status: 'idle',
   bootMessage: 'Demarrage de Celsius…',
-  catalog: { name: CONFIG.storeName, categories: [], apps: [] },
+  catalog: { name: CONFIG.storeName, apps: [] },
   installed: {},
   settings: { ...DEFAULT_SETTINGS },
   apps: [],
-  history: {},
   tasks: {},
   selfUpdate: null,
   selfUpdatePhase: 'idle',
   view: 'home',
   selectedId: null,
   search: '',
-  category: 'all',
   toast: null,
   modal: null,
   appInfo: null,
   systemInfo: null,
+  stateInfo: null,
   busy: {},
 };
 
@@ -53,16 +51,12 @@ function reducer(state, action) {
       return { ...state, installed: action.installed };
     case 'apps':
       return { ...state, apps: action.apps, status: 'ready' };
-    case 'history':
-      return { ...state, history: { ...state.history, ...action.patch } };
     case 'view':
       return { ...state, view: action.view, selectedId: action.selectedId ?? state.selectedId };
     case 'select':
       return { ...state, view: 'detail', selectedId: action.id };
     case 'search':
       return { ...state, search: action.value };
-    case 'category':
-      return { ...state, category: action.value };
     case 'catalogMeta':
       return { ...state, catalog: { ...state.catalog, ...action.patch } };
     case 'task':
@@ -78,7 +72,12 @@ function reducer(state, action) {
     case 'modal':
       return { ...state, modal: action.modal };
     case 'info':
-      return { ...state, appInfo: action.appInfo, systemInfo: action.systemInfo };
+      return {
+        ...state,
+        appInfo: action.appInfo,
+        systemInfo: action.systemInfo,
+        stateInfo: action.stateInfo,
+      };
     case 'busy':
       return { ...state, busy: { ...state.busy, [action.key]: action.value } };
     case 'reset':
@@ -175,16 +174,15 @@ export function StoreProvider({ children }) {
         toast(err.message, 'error');
         return;
       }
-      const categories = source.categories?.length ? source.categories : ['Divers'];
       dispatch({
         type: 'catalogMeta',
-        patch: { categories, storeName: source.store?.name || CONFIG.storeName },
+        patch: { storeName: source.store?.name || CONFIG.storeName },
       });
 
-      const defs = source.apps || [];
+      const apps = source.apps || [];
       const installedMap = stateRef.current.installed;
 
-      const built = await mapLimit(defs, 5, async (def) => {
+      const built = await mapLimit(apps, 5, async (def) => {
         let release = null;
         try {
           release = await fetchLatestRelease(def.repo);
@@ -199,31 +197,13 @@ export function StoreProvider({ children }) {
         return enrich(buildAppEntry(def, release, installed), stateRef.current.settings);
       });
 
-      const order = new Map(defs.map((d, i) => [d.id, i]));
+      const order = new Map(apps.map((d, i) => [d.id, i]));
       built.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
       dispatch({ type: 'apps', apps: built });
     },
     [loadCatalogSource, toast],
   );
 
-  const loadHistory = useCallback(async (appId) => {
-    const { history } = stateRef.current;
-    if (history[appId]) return;
-    const app = stateRef.current.apps.find((a) => a.id === appId);
-    if (!app) return;
-    dispatch({ type: 'busy', key: `history:${appId}`, value: true });
-    try {
-      const releases = await fetchReleases(app.repo, { perPage: 12 });
-      dispatch({
-        type: 'history',
-        patch: { [appId]: releases.map((r) => ({ ...r, body: stripHtml(r.body) })) },
-      });
-    } catch {
-      dispatch({ type: 'history', patch: { [appId]: [] } });
-    } finally {
-      dispatch({ type: 'busy', key: `history:${appId}`, value: false });
-    }
-  }, []);
 
   /* ------------------------------ install ----------------------------- */
 
@@ -427,6 +407,58 @@ export function StoreProvider({ children }) {
   );
 
 
+  /**
+   * Reconstruit la bibliotheque en parcourant le disque.
+   * Filet de securite quand l'etat a ete perdu ou quand une app a ete
+   * installee en dehors de Celsius.
+   */
+  const detectInstalled = useCallback(async () => {
+    const list = stateRef.current.apps.map((a) => ({
+      id: a.id,
+      name: a.name,
+      androidPackage: a.androidPackage,
+    }));
+    if (!list.length) {
+      toast('Le catalogue est vide.', 'info');
+      return;
+    }
+    dispatch({ type: 'busy', key: 'detect', value: true });
+    try {
+      const found = await bridge.detectInstalled(list);
+      const next = { ...stateRef.current.installed };
+      let changed = 0;
+      for (const item of found) {
+        if (!item?.id || !item.platform) continue;
+        const key = installKey(item.id, item.platform);
+        const prev = next[key];
+        const version = item.version || prev?.version || null;
+        const path = item.path || prev?.path || null;
+        if (prev?.path === path && prev?.version === version) continue;
+        next[key] = {
+          version,
+          // Conserve la date d'origine : une detection n'est pas une installation.
+          installedAt: prev?.installedAt || Date.now(),
+          path,
+          packageName: prev?.packageName || null,
+          assetName: prev?.assetName || null,
+        };
+        changed += 1;
+      }
+      if (changed) {
+        await bridge.kvSet(KV.installed, next);
+        dispatch({ type: 'installed', installed: next });
+        await refresh({ silent: true });
+        toast(`${changed} application(s) retrouvee(s) sur ce PC.`, 'success');
+      } else {
+        toast('Toutes les apps du catalogue sont deja declarees.', 'info');
+      }
+    } catch (err) {
+      toast(err?.message || String(err), 'error');
+    } finally {
+      dispatch({ type: 'busy', key: 'detect', value: false });
+    }
+  }, [refresh, toast]);
+
   /* ----------------------------- settings ----------------------------- */
 
   const saveSettings = useCallback(
@@ -491,9 +523,10 @@ export function StoreProvider({ children }) {
     let cancelled = false;
     (async () => {
       dispatch({ type: 'status', message: 'Lecture de la configuration…' });
-      const [appInfo, systemInfo, settings, installed] = await Promise.all([
+      const [appInfo, systemInfo, stateInfo, settings, installed] = await Promise.all([
         bridge.info(),
         bridge.systemInfo().catch(() => null),
+        bridge.stateInfo().catch(() => null),
         bridge.kvGet(KV.settings).catch(() => null),
         bridge.kvGet(KV.installed).catch(() => null),
       ]);
@@ -503,7 +536,7 @@ export function StoreProvider({ children }) {
         patch: { ...DEFAULT_SETTINGS, ...(settings || {}) },
       });
       dispatch({ type: 'installed', installed: installed || {} });
-      dispatch({ type: 'info', appInfo, systemInfo });
+      dispatch({ type: 'info', appInfo, systemInfo, stateInfo });
       await refresh();
       if (cancelled) return;
       dispatch({ type: 'boot', patch: { booted: true, status: 'ready' } });
@@ -601,18 +634,12 @@ export function StoreProvider({ children }) {
     () =>
       state.apps
         .filter((a) => !a.hidden)
-        .filter((a) => (state.category === 'all' ? true : a.category === state.category))
         .filter((a) => {
           const q = state.search.trim().toLowerCase();
           if (!q) return true;
-          return (
-            a.name.toLowerCase().includes(q) ||
-            a.repo.toLowerCase().includes(q) ||
-            a.tagline.toLowerCase().includes(q) ||
-            a.category.toLowerCase().includes(q)
-          );
+          return a.name.toLowerCase().includes(q) || a.tagline.toLowerCase().includes(q);
         }),
-    [state.apps, state.category, state.search],
+    [state.apps, state.search],
   );
 
   const updates = useMemo(() => state.apps.filter((a) => a.needsUpdate), [state.apps]);
@@ -624,10 +651,6 @@ export function StoreProvider({ children }) {
     () => state.apps.find((a) => a.id === state.selectedId) || null,
     [state.apps, state.selectedId],
   );
-  const featured = useMemo(
-    () => state.apps.find((a) => a.featured) || updates[0] || state.apps[0] || null,
-    [state.apps, updates],
-  );
 
   const value = useMemo(
     () => ({
@@ -637,17 +660,16 @@ export function StoreProvider({ children }) {
       updates,
       library,
       selected,
-      featured,
       toast,
       modal,
       refresh,
-      loadHistory,
       doInstall,
       cancelTask,
       launchApp,
       uninstallApp,
       markInstalled,
       saveSettings,
+      detectInstalled,
       checkSelf,
       applySelf,
     }),
@@ -657,17 +679,16 @@ export function StoreProvider({ children }) {
       updates,
       library,
       selected,
-      featured,
       toast,
       modal,
       refresh,
-      loadHistory,
       doInstall,
       cancelTask,
       launchApp,
       uninstallApp,
       markInstalled,
       saveSettings,
+      detectInstalled,
       checkSelf,
       applySelf,
     ],

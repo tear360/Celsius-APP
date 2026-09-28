@@ -93,8 +93,12 @@ export function buildAppEntry(def, release, installed) {
     const inst = installed?.[platform];
     const version = release?.version || null;
     let status = 'absent';
-    if (inst && version) status = isNewer(version, inst.version) ? 'outdated' : 'up-to-date';
-    else if (inst) status = 'up-to-date';
+    if (inst) {
+      // Version inconnue (app detectee sur le disque) : on ne peut pas juger,
+      // donc pas de notification de MAJ inutile.
+      if (!version || !inst.version) status = 'up-to-date';
+      else status = isNewer(version, inst.version) ? 'outdated' : 'up-to-date';
+    }
     platforms[platform] = {
       asset: asset || null,
       available: Boolean(asset),

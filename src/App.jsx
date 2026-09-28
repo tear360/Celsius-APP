@@ -15,7 +15,7 @@ const TITLES = {
   explore: ['Explorer', 'Tout le catalogue, filtre par categorie'],
   updates: ['Mises a jour', 'Ce qui a change depuis ta version installee'],
   library: ['Bibliotheque', 'Tes applications installees'],
-  settings: ['Reglages', 'Catalogue, mise a jour, a propos'],
+  settings: ['Reglages', 'Bibliotheque, mise a jour, a propos'],
   detail: ['Fiche application', ''],
 };
 
@@ -101,7 +101,7 @@ function Shell() {
             <>
               <TopBar
                 title={view === 'detail' && selected ? selected.name : title}
-                subtitle={view === 'detail' ? selected?.repo : subtitle}
+                subtitle={view === 'detail' ? selected?.tagline : subtitle}
                 showSearch={view === 'explore' || view === 'home'}
                 search={state.search}
                 onSearch={(value) => dispatch({ type: 'search', value })}

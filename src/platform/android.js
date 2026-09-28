@@ -61,6 +61,27 @@ export async function systemInfo() {
   return Celsius.systemInfo();
 }
 
+// Android : l'etat vit dans les Preferences systeme, rien a reparcourir.
+export async function stateInfo() {
+  return { path: 'Preferences (Capacitor)', degraded: false };
+}
+
+export async function detectInstalled(list) {
+  const out = [];
+  for (const item of Array.isArray(list) ? list : []) {
+    if (!item?.id || !item.androidPackage) continue;
+    if (await isPackageInstalled(item.androidPackage)) {
+      out.push({
+        id: item.id,
+        platform: 'android',
+        path: null,
+        version: await installedVersionOf(item.androidPackage),
+      });
+    }
+  }
+  return out;
+}
+
 export async function openInstallSettings() {
   return Celsius.openInstallSettings();
 }

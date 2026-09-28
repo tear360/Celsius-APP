@@ -1,7 +1,7 @@
 {
   "name": "celsius-app",
   "productName": "Celsius",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Celsius - un store d'applications pour Windows et Android. Installe, met a jour et lance tes apps depuis les GitHub Releases.",
   "author": {
     "name": "TEAR36",
@@ -22,7 +22,7 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "check": "npm run lint && npm test && npm run build",
-    "test": "node scripts/test-semver.mjs && node scripts/test-resolve.cjs && node scripts/test-catalog.mjs",
+    "test": "node scripts/test-semver.mjs && node scripts/test-resolve.cjs && node scripts/test-catalog.mjs && node scripts/test-store.mjs",
     "cap:sync": "npm run build && cap sync android",
     "android:apk": "npm run cap:sync && cd android && gradlew assembleRelease",
     "dist:win": "npm run build && electron-builder --config electron-builder.config.mjs --win nsis --publish never",

@@ -34,6 +34,8 @@ export const pickExecutable = (appName) => required().pickExecutable(appName);
 export const openExternal = (url) => required().openExternal(url);
 export const revealPath = (path) => required().revealPath(path);
 export const systemInfo = () => required().systemInfo();
+export const stateInfo = () => required().stateInfo();
+export const detectInstalled = (list) => required().detectInstalled(list);
 export const windowAction = (action) => required().windowAction(action);
 export const windowState = () => required().windowState();
 export const onWindowState = (cb) => bridge?.onWindowState(cb) ?? noopUnsubscribe;

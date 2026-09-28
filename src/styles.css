@@ -1302,6 +1302,60 @@ button {
   flex-wrap: wrap;
 }
 
+/* ------------------------------ dropdown -------------------------------- */
+
+.dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.dropdown__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+}
+
+.dropdown__menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 2;
+  min-width: 236px;
+  padding: 6px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: rgba(19, 26, 51, 0.98);
+  backdrop-filter: blur(20px);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  animation: pop 0.16s var(--ease);
+}
+
+.dropdown__label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  font-weight: 650;
+  padding: 7px 10px 6px;
+}
+
+.dropdown__item {
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-dim);
+  transition: background 0.13s var(--ease), color 0.13s var(--ease);
+}
+
+.dropdown__item:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
 /* ------------------------------ empty state ----------------------------- */
 
 .empty {

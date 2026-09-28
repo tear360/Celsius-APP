@@ -109,6 +109,12 @@ test('regex invalide ignoree sans casser la selection', () => {
   assert.strictEqual(app.platforms.windows.asset.name, 'Demo-Windows-Setup-v1.4.5.exe');
 });
 
+test('version installee inconnue : pas de fausse notification de MAJ', () => {
+  const app = buildAppEntry(def, release, { windows: { version: null, path: 'x.exe' } });
+  assert.strictEqual(app.platforms.windows.status, 'up-to-date');
+  assert.strictEqual(app.needsUpdate, false);
+});
+
 test('le catalogue livre est valide', () => {
   assert.ok(Array.isArray(catalog.apps), 'apps doit etre un tableau');
   const ids = new Set();

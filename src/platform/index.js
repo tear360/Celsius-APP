@@ -28,6 +28,8 @@ export const pickExecutable = mod.pickExecutable;
 export const openExternal = mod.openExternal;
 export const revealPath = mod.revealPath;
 export const systemInfo = mod.systemInfo;
+export const stateInfo = mod.stateInfo ?? (async () => ({ path: null, degraded: false }));
+export const detectInstalled = mod.detectInstalled ?? (async () => []);
 export const checkSelfUpdate = mod.checkSelfUpdate;
 export const applySelfUpdate = mod.applySelfUpdate;
 export const startBackgroundUpdateCheck = mod.startBackgroundUpdateCheck;

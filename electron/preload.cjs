@@ -9,6 +9,8 @@ const on = (channel) => (cb) => {
 contextBridge.exposeInMainWorld('celsiusBridge', {
   info: () => ipcRenderer.invoke('celsius:info'),
   systemInfo: () => ipcRenderer.invoke('celsius:systemInfo'),
+  stateInfo: () => ipcRenderer.invoke('celsius:stateInfo'),
+  detectInstalled: (list) => ipcRenderer.invoke('celsius:detectInstalled', list),
 
   kvGet: (key) => ipcRenderer.invoke('celsius:kvGet', key),
   kvSet: (key, value) => ipcRenderer.invoke('celsius:kvSet', key, value),

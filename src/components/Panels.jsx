@@ -1,13 +1,77 @@
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../state/store.jsx';
 import { CONFIG } from '../config.js';
-import { IconExternal, IconInfo, IconUpdate } from './Icons.jsx';
+import {
+  IconChevron,
+  IconExternal,
+  IconInfo,
+  IconSearch,
+  IconUpdate,
+} from './Icons.jsx';
+
+const ISSUE_TYPES = [
+  { id: 'bug', label: 'Bug' },
+  { id: 'app-installer', label: 'Une app ne s installe pas' },
+  { id: 'app-update', label: 'Une app ne se met pas a jour' },
+  { id: 'android', label: 'Probleme sur Android' },
+  { id: 'windows', label: 'Probleme sur Windows' },
+  { id: 'feature', label: 'Suggestion / amelioration' },
+  { id: 'other', label: 'Autre' },
+];
+
+/** Construit l'URL "nouvelle issue" GitHub, pre-remplie avec la version locale. */
+function issueUrl(type, version, system) {
+  const os = system ? `${system.os} (${system.arch}, ${system.cores} coeurs)` : 'inconnu';
+  const body = [
+    '### Description',
+    '',
+    '<!-- decris ce qui se passe -->',
+    '',
+    '### Version de Celsius',
+    `${version || 'inconnue'}`,
+    '',
+    '### Systeme',
+    `${os}`,
+    '',
+    '### Etapes pour reproduire',
+    '1.',
+    '2.',
+    '3.',
+    '',
+    '### Journal / message d erreur',
+    '```',
+    '',
+    '```',
+  ].join('\n');
+  const params = new URLSearchParams({ title: `[${type}] `, body });
+  return `${CONFIG.issueBase}?${params.toString()}`;
+}
 
 export function Settings() {
-  const { state, saveSettings, refresh, checkSelf, openExternal } = useStore();
+  const { state, saveSettings, refresh, checkSelf, openExternal, detectInstalled } = useStore();
   const s = state.settings;
   const self = state.selfUpdate;
   const selfPhase = state.selfUpdatePhase;
   const source = state.catalog.source;
+  const appVersion = state.appInfo?.version;
+  const [issueOpen, setIssueOpen] = useState(false);
+  const issueRef = useRef(null);
+
+  useEffect(() => {
+    if (!issueOpen) return undefined;
+    const onDown = (e) => {
+      if (issueRef.current && !issueRef.current.contains(e.target)) setIssueOpen(false);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') setIssueOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [issueOpen]);
 
   return (
     <div className="detail" style={{ maxWidth: 720 }}>
@@ -37,6 +101,49 @@ export function Settings() {
           value={s.startMaximized}
           onChange={(v) => saveSettings({ startMaximized: v })}
         />
+      </div>
+
+      <div className="panel">
+        <h3>Ma bibliotheque</h3>
+        <p style={{ margin: '0 0 12px', color: 'var(--text-dim)', fontSize: 13 }}>
+          Celsius retient les versions installees pour te proposer les mises a jour. Si la
+          bibliotheque semble oubliee apres une reinstallation, rescanne le disque : les
+          applications du catalogue deja presentes sur ce PC seront retrouvees.
+        </p>
+        {state.stateInfo?.degraded && (
+          <div
+            style={{
+              marginBottom: 12,
+              padding: '10px 12px',
+              borderRadius: 'var(--radius-sm)',
+              background: 'rgba(255,200,87,.12)',
+              border: '1px solid rgba(255,200,87,.3)',
+              color: '#ffd98a',
+              fontSize: 12.5,
+            }}
+          >
+            Le fichier d'etat principal etait illisible au demarrage : les donnees ont ete
+            restaurees depuis la copie de secours.
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button
+            className="btn btn--ghost btn--sm"
+            onClick={detectInstalled}
+            disabled={Boolean(state.busy.detect)}
+          >
+            {state.busy.detect ? <span className="spinner" /> : <IconSearch size={14} />}
+            {state.busy.detect ? 'Analyse…' : 'Rechercher les apps installees'}
+          </button>
+          <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>
+            {Object.keys(state.installed).length} entree(s) enregistree(s)
+          </span>
+        </div>
+        {state.stateInfo?.path && (
+          <div className="hint" style={{ marginTop: 12, wordBreak: 'break-all' }}>
+            Fichier d'etat : <span className="kbd">{state.stateInfo.path}</span>
+          </div>
+        )}
       </div>
 
       <div className="panel">
@@ -87,9 +194,42 @@ permet de surcharger ces regles pour une app.`}
           <button className="btn btn--ghost btn--sm" onClick={() => openExternal(CONFIG.repoUrl)}>
             <IconExternal size={14} /> Code source
           </button>
-          <button className="btn btn--ghost btn--sm" onClick={() => openExternal(CONFIG.supportUrl)}>
+        <div className="dropdown" ref={issueRef}>
+          <button
+            className="btn btn--ghost btn--sm"
+            onClick={() => setIssueOpen((v) => !v)}
+            aria-expanded={issueOpen}
+          >
             Signaler un probleme
+            <IconChevron
+              size={14}
+              style={{
+                transform: issueOpen ? 'rotate(90deg)' : 'none',
+                transition: 'transform .16s',
+              }}
+            />
           </button>
+          {issueOpen && (
+            <>
+              <div className="dropdown__scrim" onClick={() => setIssueOpen(false)} />
+              <div className="dropdown__menu">
+                <div className="dropdown__label">Ouvrir une issue</div>
+                {ISSUE_TYPES.map((t) => (
+                  <button
+                    key={t.id}
+                    className="dropdown__item"
+                    onClick={() => {
+                      setIssueOpen(false);
+                      openExternal(issueUrl(t.id, appVersion, state.systemInfo));
+                    }}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
         </div>
       </div>
 
