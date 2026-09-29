@@ -18,8 +18,6 @@ const Celsius = registerPlugin('Celsius');
 export const platform = 'android';
 export const isDesktop = false;
 
-const noopUnsubscribe = () => {};
-
 export async function info() {
   const res = await App.getInfo();
   return {
@@ -90,7 +88,12 @@ let counter = 0;
 const nextTaskId = () => `t${Date.now().toString(36)}${(counter += 1)}`;
 
 export async function install({ appId, asset, version, platform: target }) {
-  if (target !== 'android') throw new Error('Cible non geree sur Android');
+  const want = target || 'android';
+  if (want !== 'android') {
+    throw new Error(
+      `Impossible d installer une cible « ${want} » depuis Android : choisis la ligne Android de la fiche.`,
+    );
+  }
   if (!asset?.url) throw new Error('Aucun APK pour cette app');
   const taskId = nextTaskId();
   const fileName = sanitize(asset.name);
@@ -138,6 +141,18 @@ export async function installedVersionOf(packageName) {
   } catch {
     return null;
   }
+}
+
+export async function appStatus({ androidPackage }) {
+  return { installed: androidPackage ? await isPackageInstalled(androidPackage) : false, running: false };
+}
+
+export async function closeApp() {
+  return { closed: false, reason: 'non-applicable' };
+}
+
+export async function uninstallApp() {
+  return { ok: false, reason: 'utiliser-les-reglages' };
 }
 
 export async function pickExecutable() {
@@ -194,10 +209,32 @@ export async function startBackgroundUpdateCheck() {
   /* Verification au demarrage : le listener est enregistre dans App.jsx */
 }
 
-export const onDownloadProgress = (cb) =>
-  Celsius.addListener('downloadProgress', cb) ?? noopUnsubscribe;
-export const onTaskState = (cb) => Celsius.addListener('taskState', cb) ?? noopUnsubscribe;
-export const onSelfUpdateEvent = (cb) => Celsius.addListener('updateState', cb) ?? noopUnsubscribe;
+/**
+ * Capacitor renvoie une Promise de PluginListenerHandle, pas la fonction
+ * de desabonnement. On expose donc toujours une fonction : le cleanup des
+ * effets React appelle le retour sans verifier son type.
+ */
+const subscribe = (event, cb) => {
+  let cancelled = false;
+  let handle = null;
+  const ready = Celsius.addListener(event, cb).then((h) => {
+    handle = h;
+  });
+  ready.catch(() => {});
+  return () => {
+    cancelled = true;
+    if (handle) {
+      handle.remove?.();
+      return;
+    }
+    ready.then((h) => h?.remove?.()).catch(() => {});
+    if (cancelled) return;
+  };
+};
+
+export const onDownloadProgress = (cb) => subscribe('downloadProgress', cb);
+export const onTaskState = (cb) => subscribe('taskState', cb);
+export const onSelfUpdateEvent = (cb) => subscribe('updateState', cb);
 
 export async function haptic(style = 'light') {
   try {

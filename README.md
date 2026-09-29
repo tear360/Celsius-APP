@@ -135,6 +135,47 @@ Le processus principal sert le bundle via un protocole `app://` custom
 Permissions declarees : `INTERNET`, `ACCESS_NETWORK_STATE`, `REQUEST_INSTALL_PACKAGES`,
 plus un bloc `<queries>` pour la visibilite des packages (Android 11+).
 
+## Installer et mettre a jour une application
+
+### Choix de la plateforme
+
+Une action vise **toujours la plateforme de l'appareil courant**, et ne bascule sur l'autre que
+si la release ne contient aucun binaire pour celle-ci. Sans cette regle, la fiche d'une app
+disponible sur les deux plateformes demandait l'installeur Windows depuis Android.
+
+### Cycle d'installation Windows
+
+Celsius n'annonce plus « installé » au simple lancement de l'installeur. La sequence est :
+
+1. **téléchargement** avec progression ;
+2. si l'application tourne encore, phase **attente** : Windows ne peut pas remplacer les
+   fichiers d'un processus actif — Celsius propose de la fermer (`taskkill /F /T`) puis
+   relance la tentative ;
+3. **exécution** de l'installeur, avec attente de sa fin et lecture du code de sortie.
+   Une mise à jour passe en mode silencieux (`/quiet` pour jpackage/WiX, `/S` pour NSIS,
+   `/VERYSILENT` pour Inno Setup) ; une première installation laisse l'assistant visible ;
+4. **vérification** : la version du binaire est relue sur le disque et comparée à la version
+   annoncée par la release. Si elle n'a pas bougé, Celsius le dit et propose « Réparer ».
+
+### « Réparer » — désinstaller puis réinstaller
+
+Certains installeurs (WiX/MSI notamment) ne réparent rien si le produit est déjà présent.
+Le bouton **Réparer** de la fiche :
+
+1. cherche un désinstalleur à côté du binaire (`unins*.exe`, `Uninstall*.exe`) ;
+2. sinon interroge le registre (`QuietUninstallString` / `UninstallString`, hives HKLM, HKLM
+   WOW6432Node et HKCU) — c'est le cas de `jpackage`, qui n'installe aucun `unins*.exe` ;
+3. l'exécute, puis relance l'installation complète.
+
+C'est aussi proposé automatiquement quand l'installeur échoue ou quand la version sur disque
+reste inchangée après la mise à jour.
+
+### Android
+
+L'APK est téléchargé dans le dossier externe privé de l'app, puis l'instalteur système est
+ouvert via `FileProvider` + `ACTION_VIEW`. Si `REQUEST_INSTALL_PACKAGES` n'est pas accordée,
+Celsius renvoie vers les réglages systeme au lieu d'echouer sans explication.
+
 ## Integration Windows
 
 - Fenetre sans chrome avec **contrôles de fenêtre dessinés par l'app** (réduire / agrandir /
@@ -223,6 +264,7 @@ powershell -File scripts/build-win.ps1    # installateur Windows -> release/
 | `scripts/test-resolve.cjs` | resolution de l'executable installe (8 scenarios NSIS / Program Files / portable) |
 | `scripts/test-catalog.mjs` | selection des assets, statuts installed / a jour / MAJ, catalogue invalide |
 | `scripts/test-store.mjs` | persistance : fichier tronque, absent, copie de secours, fusion |
+| `scripts/test-platform-target.mjs` | choix de la plateforme cible (regression Android) |
 
 `npm run lint` applique ESLint avec `no-use-before-define` et les regles de hooks React : un
 composant qui lit une variable declaree plus bas entraine une erreur TDZ au premier rendu et

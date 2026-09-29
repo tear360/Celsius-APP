@@ -8,11 +8,11 @@ import { DownloadDock, Toast } from './components/Dock.jsx';
 import { ModalHost } from './components/Modal.jsx';
 import { Splash } from './components/Splash.jsx';
 import { IconBack, IconRefresh } from './components/Icons.jsx';
-import { isDesktop } from './platform/index.js';
+import { isDesktop, isAndroidPlatform } from './platform/index.js';
 
 const TITLES = {
   home: ['Celsius', 'Le store des apps de TEAR36'],
-  explore: ['Explorer', 'Tout le catalogue, filtre par categorie'],
+  explore: ['Explorer', 'Tout le catalogue du store'],
   updates: ['Mises a jour', 'Ce qui a change depuis ta version installee'],
   library: ['Bibliotheque', 'Tes applications installees'],
   settings: ['Reglages', 'Bibliotheque, mise a jour, a propos'],
@@ -20,8 +20,9 @@ const TITLES = {
 };
 
 function Shell() {
-  const { state, dispatch, refresh, checkSelf, openExternal, selected } = useStore();
+  const { state, dispatch, refresh, checkSelf, selected } = useStore();
   const mobile = !isDesktop;
+  const currentPlatform = isAndroidPlatform ? 'android' : 'windows';
   const view = state.view;
 
   const openApp = (id) => {
@@ -45,17 +46,19 @@ function Shell() {
 
   let content = null;
   if (view === 'home') {
-    content = <Home mobile={mobile} openApp={openApp} openExternal={openExternal} />;
+    content = <Home openApp={openApp} currentPlatform={currentPlatform} />;
   } else if (view === 'explore') {
-    content = <Explore mobile={mobile} openApp={openApp} />;
+    content = <Explore mobile={mobile} openApp={openApp} currentPlatform={currentPlatform} />;
   } else if (view === 'updates') {
-    content = <Updates openApp={openApp} />;
+    content = <Updates openApp={openApp} currentPlatform={currentPlatform} />;
   } else if (view === 'library') {
-    content = <Library openApp={openApp} />;
+    content = <Library openApp={openApp} currentPlatform={currentPlatform} />;
   } else if (view === 'settings') {
     content = <Settings mobile={mobile} />;
   } else if (view === 'detail') {
-    content = selected ? <Detail app={selected} mobile={mobile} /> : null;
+    content = selected ? (
+      <Detail app={selected} mobile={mobile} currentPlatform={currentPlatform} />
+    ) : null;
   }
 
   return (

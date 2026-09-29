@@ -1,4 +1,5 @@
 import { useStore } from '../state/store.jsx';
+import { preferredPlatform } from '../lib/platform-target.js';
 import { AppIcon } from './AppIcon.jsx';
 import { IconDownload, IconPlay, IconStar } from './Icons.jsx';
 import { formatCount } from '../lib/format.js';
@@ -10,9 +11,9 @@ function platformLabel(app) {
   return null;
 }
 
-export function AppCard({ app, onOpen }) {
+export function AppCard({ app, onOpen, currentPlatform }) {
   const { doInstall, launchApp } = useStore();
-  const target = app.platforms.android?.available ? 'android' : 'windows';
+  const target = preferredPlatform(app, currentPlatform);
   const entry = app.platforms[target] || {};
   const installed = entry.installed;
   const outdated = entry.status === 'outdated';

@@ -20,6 +20,9 @@ contextBridge.exposeInMainWorld('celsiusBridge', {
   cancel: (taskId) => ipcRenderer.invoke('celsius:cancel', taskId),
   launch: (payload) => ipcRenderer.invoke('celsius:launch', payload),
   uninstall: (payload) => ipcRenderer.invoke('celsius:uninstall', payload),
+  appStatus: (payload) => ipcRenderer.invoke('celsius:appStatus', payload),
+  closeApp: (payload) => ipcRenderer.invoke('celsius:closeApp', payload),
+  uninstallApp: (payload) => ipcRenderer.invoke('celsius:uninstallApp', payload),
   pickExecutable: (appName) => ipcRenderer.invoke('celsius:pickExecutable', appName),
 
   openExternal: (url) => ipcRenderer.invoke('celsius:openExternal', url),

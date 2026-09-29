@@ -2,7 +2,7 @@ import { useStore } from '../state/store.jsx';
 import { AppCard } from './AppCard.jsx';
 import { IconBox, IconSearch, IconUpdate } from './Icons.jsx';
 
-export function Home({ openApp }) {
+export function Home({ openApp, currentPlatform }) {
   const { state, dispatch, refresh, visibleApps } = useStore();
   const loading = state.status === 'loading' && state.apps.length === 0;
 
@@ -20,7 +20,7 @@ export function Home({ openApp }) {
               Tout voir
             </button>
           </div>
-          <UpdatesRow openApp={openApp} />
+          <UpdatesRow openApp={openApp} currentPlatform={currentPlatform} />
         </div>
       )}
 
@@ -43,7 +43,7 @@ export function Home({ openApp }) {
         ) : (
           <div className="grid">
             {visibleApps.map((app) => (
-              <AppCard key={app.id} app={app} onOpen={openApp} />
+              <AppCard key={app.id} app={app} onOpen={openApp} currentPlatform={currentPlatform} />
             ))}
           </div>
         )}
@@ -56,7 +56,7 @@ function countUpdates(apps) {
   return apps.filter((a) => a.needsUpdate).length;
 }
 
-function UpdatesRow({ openApp }) {
+function UpdatesRow({ openApp, currentPlatform }) {
   const { state } = useStore();
   const updates = state.apps.filter((a) => a.needsUpdate);
   if (!updates.length) {
@@ -82,13 +82,13 @@ function UpdatesRow({ openApp }) {
   return (
     <div className="grid">
       {updates.map((app) => (
-        <AppCard key={app.id} app={app} onOpen={openApp} />
+        <AppCard key={app.id} app={app} onOpen={openApp} currentPlatform={currentPlatform} />
       ))}
     </div>
   );
 }
 
-export function Explore({ mobile, openApp }) {
+export function Explore({ mobile, openApp, currentPlatform }) {
   const { state, dispatch, visibleApps } = useStore();
   return (
     <>
@@ -120,7 +120,7 @@ export function Explore({ mobile, openApp }) {
         ) : (
           <div className="grid">
             {visibleApps.map((app) => (
-              <AppCard key={app.id} app={app} onOpen={openApp} />
+              <AppCard key={app.id} app={app} onOpen={openApp} currentPlatform={currentPlatform} />
             ))}
           </div>
         )}
@@ -129,7 +129,7 @@ export function Explore({ mobile, openApp }) {
   );
 }
 
-export function Updates({ openApp }) {
+export function Updates({ openApp, currentPlatform }) {
   const { state } = useStore();
   const updates = state.apps.filter((a) => a.needsUpdate);
   return (
@@ -153,7 +153,7 @@ export function Updates({ openApp }) {
       ) : (
         <div className="grid grid--wide">
           {updates.map((app) => (
-            <AppCard key={app.id} app={app} onOpen={openApp} />
+            <AppCard key={app.id} app={app} onOpen={openApp} currentPlatform={currentPlatform} />
           ))}
         </div>
       )}
@@ -161,7 +161,7 @@ export function Updates({ openApp }) {
   );
 }
 
-export function Library({ openApp }) {
+export function Library({ openApp, currentPlatform }) {
   const { library, dispatch, detectInstalled, state } = useStore();
   return (
     <div className="section">
@@ -205,7 +205,7 @@ export function Library({ openApp }) {
       ) : (
         <div className="grid">
           {library.map((app) => (
-            <AppCard key={app.id} app={app} onOpen={openApp} />
+            <AppCard key={app.id} app={app} onOpen={openApp} currentPlatform={currentPlatform} />
           ))}
         </div>
       )}

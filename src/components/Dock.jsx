@@ -42,8 +42,15 @@ export function DownloadDock({ mobile }) {
                 {t.phase === 'installing' ? (
                   <>
                     <span className="spinner" />
-                    <span>{mobile ? 'Installation…' : 'Lancement de l’installeur…'}</span>
+                    <span>L'installeur s'execute (ferme l'app si besoin)…</span>
                   </>
+                ) : t.phase === 'verifying' ? (
+                  <>
+                    <span className="spinner" />
+                    <span>Verification de l installation…</span>
+                  </>
+                ) : t.phase === 'needs-close' ? (
+                  <span>En attente de la fermeture de l&apos;application</span>
                 ) : t.phase === 'awaiting-install' ? (
                   <span>Valide l’installation sur ton appareil</span>
                 ) : t.phase === 'needs-permission' ? (

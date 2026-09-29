@@ -1,4 +1,5 @@
 import { useStore } from '../state/store.jsx';
+import { preferredPlatform } from '../lib/platform-target.js';
 import { AppIcon } from './AppIcon.jsx';
 import {
   IconAndroid,
@@ -7,6 +8,7 @@ import {
   IconExternal,
   IconPlay,
   IconTrash,
+  IconWrench,
   IconWindows,
 } from './Icons.jsx';
 import { formatBytes, stripHtml } from '../lib/format.js';
@@ -16,13 +18,14 @@ const PLATFORMS = [
   { key: 'android', label: 'Android', Icon: IconAndroid },
 ];
 
-export function Detail({ app, mobile }) {
-  const { dispatch, doInstall, launchApp, uninstallApp, openExternal } = useStore();
+export function Detail({ app, mobile, currentPlatform }) {
+  const { dispatch, doInstall, launchApp, uninstallApp, repairApp, state, openExternal } = useStore();
 
   if (!app) return null;
 
-  const pick = () => (app.platforms.windows?.available ? 'windows' : 'android');
+  const pick = () => preferredPlatform(app, currentPlatform);
   const targetInstalled = Boolean(app.platforms[pick()]?.installed);
+  const repairing = Boolean(state.busy[`repair:${app.id}`]);
 
   return (
     <div className={`detail ${mobile ? 'detail--mobile' : ''}`}>
@@ -57,6 +60,16 @@ export function Detail({ app, mobile }) {
             {targetInstalled && (
               <button className="btn btn--danger" onClick={() => uninstallApp(app, pick())}>
                 <IconTrash size={15} /> Desinstaller
+              </button>
+            )}
+            {targetInstalled && pick() === 'windows' && (
+              <button
+                className="btn btn--ghost"
+                onClick={() => repairApp(app, 'windows')}
+                disabled={repairing}
+                title="Desinstalle l'ancienne version puis installe la nouvelle"
+              >
+                {repairing ? <span className="spinner" /> : <IconWrench size={15} />} Reparer
               </button>
             )}
           </div>

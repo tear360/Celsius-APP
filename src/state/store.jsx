@@ -210,13 +210,13 @@ export function StoreProvider({ children }) {
   const setTask = useCallback((task) => dispatch({ type: 'task', task }), []);
 
   const doInstall = useCallback(
-    async (app, targetPlatform, { skipConfirm = false } = {}) => {
+    async (app, targetPlatform, { skipConfirm = false, force = false } = {}) => {
       const entry = app.platforms[targetPlatform];
       if (!entry?.asset) {
         toast('Aucun fichier pour cette plateforme.', 'error');
         return;
       }
-      if (entry.status === 'up-to-date') {
+      if (entry.status === 'up-to-date' && !force) {
         toast(`${app.name} est deja a jour.`, 'info');
         return;
       }
@@ -244,6 +244,7 @@ export function StoreProvider({ children }) {
             asset: entry.asset,
             version: app.version,
             platform: targetPlatform,
+            force,
           });
           setTask({
             id: res.taskId,
@@ -292,6 +293,49 @@ export function StoreProvider({ children }) {
       await run();
     },
     [modal, setTask, toast],
+  );
+
+  /** Desinstalle puis reinstalle : solution quand l'installeur refuse de MAJ. */
+  const repairApp = useCallback(
+    async (app, targetPlatform) => {
+      if (targetPlatform !== 'windows') {
+        toast('La reparation automatique est reservee a Windows.', 'info');
+        return;
+      }
+      dispatch({ type: 'busy', key: `repair:${app.id}`, value: true });
+      const rec = app.platforms.windows?.installed;
+      try {
+        const res = await bridge.uninstallApp({
+          appName: app.name,
+          executablePath: rec?.path || null,
+        });
+        if (!res?.ok) {
+          toast(
+            res?.reason === 'introuvable'
+              ? "Cette application n'est pas installee sur ce PC."
+              : "Aucun desinstalleur trouve. Supprime l'app dans Parametres > Applications, puis relance l'installation.",
+            'error',
+            7000,
+          );
+          return;
+        }
+        toast(`${app.name} desinstalle. Installation de la nouvelle version…`, 'info');
+        await bridge.kvSet(
+          KV.installed,
+          Object.fromEntries(
+            Object.entries(stateRef.current.installed).filter(
+              ([key]) => key !== installKey(app.id, 'windows'),
+            ),
+          ),
+        );
+        await doInstall(app, 'windows', { skipConfirm: true });
+      } catch (err) {
+        toast(err?.message || String(err), 'error');
+      } finally {
+        dispatch({ type: 'busy', key: `repair:${app.id}`, value: false });
+      }
+    },
+    [doInstall, toast],
   );
 
   const cancelTask = useCallback(async (taskId) => {
@@ -573,20 +617,85 @@ export function StoreProvider({ children }) {
     const offState = bridge.onTaskState(async (evt) => {
       const task = stateRef.current.tasks[evt.taskId];
       if (!task) return;
+      const app = stateRef.current.apps.find((a) => a.id === task.appId);
+      const retry = () => {
+        if (app) doInstall(app, task.platform, { skipConfirm: true, force: true });
+      };
+
       if (evt.phase === 'downloaded') {
         setTask({ ...task, phase: 'downloading', percent: 100, received: task.total });
-      } else if (evt.phase === 'installing' || evt.phase === 'launching') {
-        setTask({ ...task, phase: 'installing' });
+      } else if (evt.phase === 'installing' || evt.phase === 'verifying') {
+        setTask({ ...task, phase: evt.phase });
+      } else if (evt.phase === 'needs-close') {
+        // L'application tourne : Windows ne peut pas remplacer ses fichiers.
+        setTask({ ...task, phase: 'needs-close', filePath: evt.path });
+        modal({
+          kind: 'close-app',
+          title: `${evt.name} est encore lance`,
+          body: `Pour appliquer la mise a jour, ${evt.name} doit etre ferme. Les fichiers d'une application en cours d'execution ne peuvent pas etre remplaces.`,
+          confirmLabel: 'Fermer et continuer',
+          onConfirm: async () => {
+            const res = await bridge.closeApp({
+              appName: evt.name,
+              executablePath: evt.path,
+            });
+            if (!res?.closed) {
+              toast(`Impossible de fermer ${evt.name}. Ferme-la manuellement puis reessaie.`, 'error');
+              return;
+            }
+            retry();
+          },
+        });
       } else if (evt.phase === 'error') {
         setTask({ ...task, phase: 'error', error: evt.error });
-        toast(`${task.appName} : ${evt.error}`, 'error');
+        toast(`${task.appName} : ${evt.error}`, 'error', 8000);
+        if (app) {
+          modal({
+            kind: 'confirm',
+            title: `${task.appName} n'a pas ete installe`,
+            body: `${evt.error || "L'installeur n'a pas abouti."} Si l'application etait deja presente, desinstalle-la puis reinstalle-la : l'installeur est alors pris de zero.`,
+            confirmLabel: 'Desinstaller et reinstaller',
+            onConfirm: () => repairApp(app, task.platform),
+          });
+        }
       } else if (evt.phase === 'done') {
+        const v = evt.verified;
+        if (v?.path) {
+          await markInstalled(task.appId, task.platform, {
+            version: v.version || task.version,
+            path: v.path,
+            assetName: task.assetName,
+          });
+        }
+        if (evt.timedOut) {
+          setTask({ ...task, phase: 'done', percent: 100 });
+          toast(
+            `${task.appName} : l'installeur tourne en arriere-plan, surveille la fin de l'assistant.`,
+            'info',
+            7000,
+          );
+          return;
+        }
         setTask({ ...task, phase: 'done', percent: 100 });
-        await markInstalled(task.appId, task.platform, {
-          version: task.version,
-          path: evt.path || task.filePath || null,
-          assetName: task.assetName,
-        });
+        // Verification : on ne dit pas "c'est fait" si la version sur disque
+        // ne correspond pas a la release annoncee.
+        if (v && v.expected && v.version && v.version !== v.expected) {
+          toast(
+            `${task.appName} : la version sur disque est ${v.version}, release attendue ${v.expected}. Utilise « Reparer ».`,
+            'error',
+            9000,
+          );
+          if (app) {
+            modal({
+              kind: 'confirm',
+              title: `${task.appName} n'a pas ete mis a jour`,
+              body: `L'installeur s'est termine sans erreur mais la version installee est toujours ${v.version} au lieu de ${v.expected}. L'installeur considere probablement que rien n'a change.`,
+              confirmLabel: 'Desinstaller et reinstaller',
+              onConfirm: () => repairApp(app, task.platform),
+            });
+          }
+          return;
+        }
         toast(`${task.appName} installe.`, 'success');
         setTimeout(() => dispatch({ type: 'taskRemove', id: task.id }), 2500);
       } else if (evt.phase === 'awaiting-install') {
@@ -620,13 +729,21 @@ export function StoreProvider({ children }) {
     });
 
 
+    // Un bridge peut renvoyer autre chose qu'une fonction (Capacitor renvoie une
+    // Promise de handle) : on n'appelle que si c'est reellement callable.
+    const safeOff = (fn) => {
+      if (typeof fn === 'function') return fn();
+      if (fn && typeof fn.then === 'function') {
+        fn.then((h) => h?.remove?.()).catch(() => {});
+      }
+    };
     return () => {
-      offProgress?.();
-      offState?.();
-      offUpdate?.();
+      safeOff(offProgress);
+      safeOff(offState);
+      safeOff(offUpdate);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [markInstalled, toast]);
+  }, [doInstall, markInstalled, repairApp, toast]);
 
   /* ------------------------------ derived ----------------------------- */
 
@@ -664,6 +781,7 @@ export function StoreProvider({ children }) {
       modal,
       refresh,
       doInstall,
+      repairApp,
       cancelTask,
       launchApp,
       uninstallApp,
@@ -683,6 +801,7 @@ export function StoreProvider({ children }) {
       modal,
       refresh,
       doInstall,
+      repairApp,
       cancelTask,
       launchApp,
       uninstallApp,

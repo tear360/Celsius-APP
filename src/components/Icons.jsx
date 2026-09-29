@@ -186,6 +186,13 @@ export const IconGit = make(
   </>,
 );
 
+export const IconWrench = make(
+  <>
+    <path d="M14.5 5.5a4 4 0 0 0 5.2 5.2L21 12l-8.5 8.5a2.1 2.1 0 0 1-3-3L18 9l1.3 1.3a4 4 0 0 0-4.8-4.8Z" {...S} />
+    <path d="m4 4 2.5 2.5" {...S} />
+  </>,
+);
+
 export const IconChevron = make(
   <>
     <path d="m9 6 6 6-6 6" {...S} />

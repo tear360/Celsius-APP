@@ -7,6 +7,14 @@ const { JsonStore } = require('./lib/json-store.cjs');
 const { downloadToFile, safeFileName } = require('./lib/downloader.cjs');
 const { findInstalledExecutable } = require('./lib/resolve.cjs');
 const { readProductVersion } = require('./lib/version.cjs');
+const {
+  runProcess,
+  silentArgsFor,
+  isRunning,
+  stopRunning,
+  findUninstallerNextTo,
+  findUninstallCommand,
+} = require('./lib/process.cjs');
 const updater = require('./lib/updater.cjs');
 
 const APP_ID = 'com.tear360.celsius';
@@ -245,28 +253,70 @@ async function runTask(task) {
     send('celsius:task', { taskId: task.id, phase: 'downloaded', path: dest });
 
     let launchPath = dest;
+    let verified = null;
+
     if (task.kind === 'portable') {
       send('celsius:task', { taskId: task.id, phase: 'installing' });
       const dir = extractDir(task.appId);
       await expandZip(dest, dir);
       launchPath = resolveInstalledExe(task.appName, null) || dest;
     } else if (task.kind === 'installer' && process.platform === 'win32') {
+      // Un installateur ne peut pas remplacer les fichiers d'une application
+      // qui tourne : on le dit et on propose de la fermer.
+      const existing = resolveInstalledExe(task.appName, null);
+      if (existing && !task.force && isRunning(existing)) {
+        send('celsius:task', {
+          taskId: task.id,
+          phase: 'needs-close',
+          path: existing,
+          name: task.appName,
+        });
+        return;
+      }
+
       send('celsius:task', { taskId: task.id, phase: 'installing' });
-      const child = spawn(dest, [], {
-        detached: true,
-        stdio: 'ignore',
-        windowsHide: false,
-      });
-      child.unref();
-      // On ne memorise PAS l'installateur comme etant l'application : le dossier
-      // d'installation n'existe qu'une fois l'assistant termine. Le vrai chemin
-      // sera recherche au moment du lancement (voir celsius:launch).
-      launchPath = null;
+
+      // Mise a jour d'une app deja presente : execution silencieuse pour ne pas
+      // imposer un assistant a chaque patch. Premiere installation : on laisse
+      // l'assistant visibles (choix du dossier, licence, etc.).
+      const args = existing ? silentArgsFor(existing) : [];
+      const result = await runProcess(dest, args);
+      if (result.timedOut) {
+        send('celsius:task', {
+          taskId: task.id,
+          phase: 'done',
+          path: existing,
+          timedOut: true,
+        });
+        return;
+      }
+      if (result.code !== 0) {
+        send('celsius:task', {
+          taskId: task.id,
+          phase: 'error',
+          error: `L'installeur a echoue (code ${result.code}).`,
+          path: dest,
+        });
+        return;
+      }
+
+      // On ne declare la reussite qu'apres verification sur le disque :
+      // un installeur peut ne rien faire s'il pense que la version est deja la.
+      send('celsius:task', { taskId: task.id, phase: 'verifying' });
+      launchPath = resolveInstalledExe(task.appName, null) || existing;
+      if (launchPath) {
+        const onDisk = await readProductVersion(launchPath);
+        verified = {
+          path: launchPath,
+          version: onDisk,
+          expected: task.version || null,
+        };
+      }
     } else {
       shell.showItemInFolder(dest);
     }
 
-    send('celsius:task', { taskId: task.id, phase: 'done', path: launchPath });
+    send('celsius:task', { taskId: task.id, phase: 'done', path: launchPath, verified });
   } catch (err) {
     const message = err?.message || String(err);
     send('celsius:task', {
@@ -400,6 +450,8 @@ function registerIpc() {
       url: payload.asset.url,
       size: payload.asset.size,
       kind: payload.asset.kind,
+      version: payload.version || null,
+      force: Boolean(payload.force),
     };
     tasks.set(id, task);
     send('celsius:task', { taskId: id, phase: 'queued' });
@@ -435,6 +487,51 @@ function registerIpc() {
   });
 
   ipcMain.handle('celsius:pickExecutable', (_e, appName) => pickExecutable(appName));
+
+  /* ---------------------------------------- fermeture / reparation ------- */
+
+  ipcMain.handle('celsius:appStatus', (_e, payload) => {
+    const exe = resolveInstalledExe(payload?.appName, payload?.executablePath || null);
+    if (!exe) return { installed: false, running: false };
+    return { installed: true, running: isRunning(exe), path: exe };
+  });
+
+  ipcMain.handle('celsius:closeApp', (_e, payload) => {
+    const exe = resolveInstalledExe(payload?.appName, payload?.executablePath || null);
+    if (!exe) return { closed: false, reason: 'introuvable' };
+    if (!isRunning(exe)) return { closed: true, already: true };
+    return { closed: stopRunning(exe) };
+  });
+
+  /**
+   * Desinstalle une application, puis la facade laisse l'appelant relancer
+   * l'installation. jpackage/WiX n'use pas de unins*.exe : on interroge alors
+   * le registre (QuietUninstallString / UninstallString).
+   */
+  ipcMain.handle('celsius:uninstallApp', async (_e, payload) => {
+    const appName = payload?.appName || '';
+    const exe = resolveInstalledExe(appName, payload?.executablePath || null);
+    if (!exe) return { ok: false, reason: 'introuvable' };
+
+    if (isRunning(exe)) stopRunning(exe);
+
+    const local = findUninstallerNextTo(exe);
+    if (local) {
+      const kind = require('./lib/process.cjs').detectInstallerKind(local);
+      const args = kind === 'inno' ? ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'] : ['/S'];
+      const res = await runProcess(local, args);
+      return { ok: res.code === 0 || res.timedOut, via: 'uninstaller' };
+    }
+
+    const registry = findUninstallCommand(appName);
+    if (registry) {
+      // Les commandes MSI se lancent via cmd, qui applique les guillemets.
+      const res = await runProcess('cmd.exe', ['/c', registry.command, '/quiet', '/norestart']);
+      return { ok: res.code === 0 || res.timedOut, via: 'registre' };
+    }
+
+    return { ok: false, reason: 'aucun-desinstalleur' };
+  });
 
   ipcMain.handle('celsius:uninstall', async (_e, payload) => {
     if (payload.executablePath) {
