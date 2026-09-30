@@ -11,6 +11,26 @@ Celsius-1.0.0.apk           APK Android signe
 
 ---
 
+## Interface
+
+La structure reprend celle de [GooglePlayCloned](https://github.com/pushpalroy/GooglePlayCloned),
+en version sombre :
+
+- **barre de recherche** toujours visible, avec les contrôles de fenêtre à droite ;
+- **onglets horizontaux** en capitales avec soulignement de l'onglet actif et compteur de MAJ ;
+- **rangée d'accès rapide** (cercles + libellé) vers les raccourcis ;
+- **carrousel** des apps avec pastille `1/N` et points de pagination ;
+- **sections en cartes** (`Mises a jour`, `Mes applications`, `Toutes les applications`) avec un
+  lien `TOUT VOIR` et des **rangées horizontales de tuiles** ;
+- **tuiles** : grande icône arrondie, nom sur deux lignes, pastille `⋮`, ligne de meta
+  (version, téléchargements, badge MAJ) et bouton d'action façon `INSTALLER` / `OUVRIR` / `MAJ` ;
+- **fiche app** : en-tête coloré avec retour et date, gros bouton `INSTALLER` en capitales,
+  **quatre badges circulaires** (téléchargements, version, taille, plateforme), description
+  avec `LIRE LA SUITE`, et barre de progression en ligne pendant un téléchargement ;
+- un second rendu en **cartes** est conserve sous les rangees, pour les catalogues denses.
+
+Le thème sombre d'origine est conservé (fond `#070a16`, accent thermique orange → magenta).
+
 ## Ce que fait Celsius
 
 | Fonction | Windows | Android |

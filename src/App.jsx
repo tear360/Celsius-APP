@@ -1,23 +1,13 @@
 import { useEffect } from 'react';
 import { StoreProvider, useStore } from './state/store.jsx';
-import { TitleBar, Sidebar, BottomNav, TopBar } from './components/Shell.jsx';
-import { Home, Explore, Updates, Library } from './components/Views.jsx';
+import { AppBar, CaptionButtons, Footer, TabBar } from './components/Shell.jsx';
+import { Explore, Home, Library, Updates } from './components/Views.jsx';
 import { Settings } from './components/Panels.jsx';
 import { Detail } from './components/Detail.jsx';
 import { DownloadDock, Toast } from './components/Dock.jsx';
 import { ModalHost } from './components/Modal.jsx';
 import { Splash } from './components/Splash.jsx';
-import { IconBack, IconRefresh } from './components/Icons.jsx';
-import { isDesktop, isAndroidPlatform } from './platform/index.js';
-
-const TITLES = {
-  home: ['Celsius', 'Le store des apps de TEAR36'],
-  explore: ['Explorer', 'Tout le catalogue du store'],
-  updates: ['Mises a jour', 'Ce qui a change depuis ta version installee'],
-  library: ['Bibliotheque', 'Tes applications installees'],
-  settings: ['Reglages', 'Bibliotheque, mise a jour, a propos'],
-  detail: ['Fiche application', ''],
-};
+import { isAndroidPlatform, isDesktop } from './platform/index.js';
 
 function Shell() {
   const { state, dispatch, refresh, checkSelf, selected } = useStore();
@@ -28,6 +18,7 @@ function Shell() {
   const openApp = (id) => {
     if (state.apps.some((a) => a.id === id)) dispatch({ type: 'select', id });
   };
+  const navigate = (v) => dispatch({ type: 'view', view: v });
 
   useEffect(() => {
     const onKey = (e) => {
@@ -40,103 +31,64 @@ function Shell() {
     return () => window.removeEventListener('keydown', onKey);
   }, [refresh]);
 
-  const [title, subtitle] = TITLES[view] || TITLES.home;
-  const updateAvailable = state.selfUpdate?.available;
   const updateCount = state.apps.filter((a) => a.needsUpdate).length;
 
   let content = null;
   if (view === 'home') {
-    content = <Home openApp={openApp} currentPlatform={currentPlatform} />;
+    content = <Home openApp={openApp} currentPlatform={currentPlatform} onNavigate={navigate} />;
   } else if (view === 'explore') {
     content = <Explore mobile={mobile} openApp={openApp} currentPlatform={currentPlatform} />;
   } else if (view === 'updates') {
     content = <Updates openApp={openApp} currentPlatform={currentPlatform} />;
   } else if (view === 'library') {
-    content = <Library openApp={openApp} currentPlatform={currentPlatform} />;
+    content = (
+      <Library openApp={openApp} currentPlatform={currentPlatform} onNavigate={navigate} />
+    );
   } else if (view === 'settings') {
-    content = <Settings mobile={mobile} />;
+    content = <Settings />;
   } else if (view === 'detail') {
     content = selected ? (
       <Detail app={selected} mobile={mobile} currentPlatform={currentPlatform} />
     ) : null;
   }
 
+  const showChrome = view !== 'detail';
+
   return (
     <div className="shell">
-      {!mobile && (
-        <TitleBar version={state.appInfo?.version || '—'} updateAvailable={updateAvailable} />
-      )}
-      <div className="body">
-        {!mobile && (
-          <Sidebar
-            view={view}
-            onNavigate={(v) => dispatch({ type: 'view', view: v })}
-            updateCount={updateCount}
-            version={state.appInfo?.version || '—'}
-            status={state.status}
-          />
+      <Splash />
+
+      <AppBar
+        version={state.appInfo?.version || '—'}
+        updateAvailable={state.selfUpdate?.available}
+        search={state.search}
+        onSearch={(value) => dispatch({ type: 'search', value })}
+        onRefresh={() => refresh()}
+      >
+        {!mobile && state.selfUpdate?.available && (
+          <button className="btn btn--sm" onClick={() => checkSelf()}>
+            Mise a jour disponible
+          </button>
         )}
-        <main className="main">
-          {mobile ? (
-            <>
-              <div className="mobile-head">
-                {view === 'detail' ? (
-                  <button
-                    className="iconbtn"
-                    onClick={() => dispatch({ type: 'view', view: 'explore' })}
-                  >
-                    <IconBack size={20} />
-                  </button>
-                ) : null}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <h1>{view === 'detail' && selected ? selected.name : title}</h1>
-                  {view !== 'detail' && subtitle ? (
-                    <div className="topbar__sub">{subtitle}</div>
-                  ) : null}
-                </div>
-                <button className="iconbtn" onClick={() => refresh()} title="Actualiser">
-                  <IconRefresh size={19} />
-                </button>
-              </div>
-              <div className="mobile-body">{content}</div>
-            </>
-          ) : (
-            <>
-              <TopBar
-                title={view === 'detail' && selected ? selected.name : title}
-                subtitle={view === 'detail' ? selected?.tagline : subtitle}
-                showSearch={view === 'explore' || view === 'home'}
-                search={state.search}
-                onSearch={(value) => dispatch({ type: 'search', value })}
-                action={
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    {updateAvailable && (
-                      <button className="btn btn--sm" onClick={() => checkSelf()}>
-                        Mise a jour disponible
-                      </button>
-                    )}
-                    <button
-                      className="iconbtn"
-                      onClick={() => refresh()}
-                      title="Actualiser le catalogue"
-                    >
-                      <IconRefresh size={17} />
-                    </button>
-                  </div>
-                }
-              />
-              <div className="scroll">{content}</div>
-            </>
-          )}
-        </main>
-      </div>
-      {mobile && (
-        <BottomNav
+        {!mobile && <CaptionButtons />}
+      </AppBar>
+
+      {showChrome && (
+        <TabBar
           view={view}
-          onNavigate={(v) => dispatch({ type: 'view', view: v })}
+          onNavigate={navigate}
           updateCount={updateCount}
+          mobile={mobile}
         />
       )}
+
+      <div className={mobile ? 'mobile-body' : 'scroll'}>
+        {content}
+        {!mobile && showChrome && (
+          <Footer version={state.appInfo?.version || '—'} status={state.status} />
+        )}
+      </div>
+
       <DownloadDock mobile={mobile} />
       <Toast />
       <ModalHost />
@@ -147,7 +99,6 @@ function Shell() {
 export default function App() {
   return (
     <StoreProvider>
-      <Splash />
       <Shell />
     </StoreProvider>
   );

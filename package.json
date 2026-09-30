@@ -1,7 +1,7 @@
 {
   "name": "celsius-app",
   "productName": "Celsius",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "description": "Celsius - un store d'applications pour Windows et Android. Installe, met a jour et lance tes apps depuis les GitHub Releases.",
   "author": {
     "name": "TEAR36",

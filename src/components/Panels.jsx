@@ -74,7 +74,7 @@ export function Settings() {
   }, [issueOpen]);
 
   return (
-    <div className="detail" style={{ maxWidth: 720 }}>
+    <div className="detail" style={{ maxWidth: 1080, padding: '18px 22px 30px' }}>
       <div className="panel">
         <h3>General</h3>
         <Toggle

@@ -1,49 +1,134 @@
 import { useStore } from '../state/store.jsx';
-import { AppCard } from './AppCard.jsx';
-import { IconBox, IconSearch, IconUpdate } from './Icons.jsx';
+import { Carousel, Card, QuickRow, SectionCard, Tile } from './Store.jsx';
+import {
+  IconAndroid,
+  IconBox,
+  IconDownload,
+  IconGrid,
+  IconLibrary,
+  IconRefresh,
+  IconSettings,
+  IconStar,
+  IconUpdate,
+  IconWindows,
+} from './Icons.jsx';
 
-export function Home({ openApp, currentPlatform }) {
-  const { state, dispatch, refresh, visibleApps } = useStore();
+export function Home({ openApp, currentPlatform, onNavigate }) {
+  const { state, refresh, visibleApps, doInstall, launchApp } = useStore();
   const loading = state.status === 'loading' && state.apps.length === 0;
+  const updates = state.apps.filter((a) => a.needsUpdate);
+  const library = state.apps.filter((a) =>
+    ['windows', 'android'].some((p) => a.platforms[p]?.installed),
+  );
+
+  const slides = state.apps.slice(0, 4).map((app) => {
+    const target = app.platforms[currentPlatform]?.available ? currentPlatform : 'windows';
+    const entry = app.platforms[target] || {};
+    const installed = entry.installed;
+    return {
+      app,
+      kicker: entry.status === 'outdated' ? 'Mise a jour disponible' : entry.installed ? 'Deja installee' : 'Disponible',
+      primaryLabel: entry.status === 'outdated' ? 'Mettre a jour' : installed ? 'Ouvrir' : 'Installer',
+      onPrimary: () => {
+        if (installed && entry.status !== 'outdated') launchApp(app, target);
+        else doInstall(app, target);
+      },
+      secondary: { label: 'Voir la fiche', onClick: () => openApp(app.id) },
+    };
+  });
 
   return (
     <>
-      {state.apps.length > 0 && (
-        <div className="section">
-          <div className="section__head">
-            <h2>Mises a jour</h2>
-            <span className="count">{countUpdates(state.apps)}</span>
-            <button
-              className="section__action"
-              onClick={() => dispatch({ type: 'view', view: 'updates' })}
-            >
-              Tout voir
-            </button>
-          </div>
-          <UpdatesRow openApp={openApp} currentPlatform={currentPlatform} />
-        </div>
-      )}
+      <QuickRow
+        items={[
+          {
+            key: 'updates',
+            label: 'Mises a jour',
+            Icon: IconUpdate,
+            onClick: () => onNavigate('updates'),
+          },
+          {
+            key: 'library',
+            label: 'Ma bibliotheque',
+            Icon: IconLibrary,
+            onClick: () => onNavigate('library'),
+          },
+          { key: 'explore', label: 'Explorer', Icon: IconGrid, onClick: () => onNavigate('explore'), plain: true },
+          {
+            key: 'refresh',
+            label: 'Actualiser',
+            Icon: IconRefresh,
+            onClick: () => refresh(),
+            plain: true,
+          },
+          {
+            key: 'settings',
+            label: 'Reglages',
+            Icon: IconSettings,
+            onClick: () => onNavigate('settings'),
+            plain: true,
+          },
+        ]}
+      />
 
-      <div className="section">
-        <div className="section__head">
-          <h2>Toutes les applications</h2>
-          <span className="count">{state.apps.length}</span>
-          <button className="section__action" onClick={() => refresh()}>
-            Actualiser
-          </button>
-        </div>
-        {loading ? (
-          <div className="grid">
-            {[0, 1, 2, 3, 4, 5].map((i) => (
-              <div className="skeleton" key={i} />
-            ))}
-          </div>
-        ) : visibleApps.length === 0 ? (
-          <EmptyCatalog />
-        ) : (
+      <Carousel slides={slides} />
+
+      <div className="sections">
+        {updates.length > 0 && (
+          <SectionCard
+            title="Mises a jour"
+            subtitle={`${updates.length} application(s) peuvent etre mise(s) a jour`}
+            more="Tout voir"
+            onMore={() => onNavigate('updates')}
+          >
+            <div className="rail">
+              {updates.map((app) => (
+                <Tile key={app.id} app={app} onOpen={openApp} currentPlatform={currentPlatform} />
+              ))}
+            </div>
+          </SectionCard>
+        )}
+
+        {library.length > 0 && (
+          <SectionCard
+            title="Mes applications"
+            subtitle="Ce que tu as installe sur cet appareil"
+            more="Bibliotheque"
+            onMore={() => onNavigate('library')}
+          >
+            <div className="rail">
+              {library.map((app) => (
+                <Tile key={app.id} app={app} onOpen={openApp} currentPlatform={currentPlatform} />
+              ))}
+            </div>
+          </SectionCard>
+        )}
+
+        <SectionCard
+          title={loading ? 'Chargement…' : 'Toutes les applications'}
+          subtitle={loading ? 'Lecture du catalogue GitHub' : `${state.apps.length} reference(s) au catalogue`}
+        >
+          {loading ? (
+            <div className="rail">
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <div className="skeleton" key={i} style={{ flex: '0 0 138px', height: 176 }} />
+              ))}
+            </div>
+          ) : visibleApps.length === 0 ? (
+            <EmptyCatalog />
+          ) : (
+            <div className="rail">
+              {visibleApps.map((app) => (
+                <Tile key={app.id} app={app} onOpen={openApp} currentPlatform={currentPlatform} />
+              ))}
+            </div>
+          )}
+        </SectionCard>
+
+        {visibleApps.length > 0 && (
           <div className="grid">
             {visibleApps.map((app) => (
-              <AppCard key={app.id} app={app} onOpen={openApp} currentPlatform={currentPlatform} />
+              <Card key={app.id} app={app} onOpen={openApp} currentPlatform={currentPlatform} />
             ))}
           </div>
         )}
@@ -52,78 +137,34 @@ export function Home({ openApp, currentPlatform }) {
   );
 }
 
-function countUpdates(apps) {
-  return apps.filter((a) => a.needsUpdate).length;
-}
-
-function UpdatesRow({ openApp, currentPlatform }) {
-  const { state } = useStore();
-  const updates = state.apps.filter((a) => a.needsUpdate);
-  if (!updates.length) {
-    return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          padding: '14px 16px',
-          borderRadius: 'var(--radius)',
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          color: 'var(--muted)',
-          fontSize: 13,
-        }}
-      >
-        <IconUpdate size={17} />
-        Tout est a jour.
-      </div>
-    );
-  }
-  return (
-    <div className="grid">
-      {updates.map((app) => (
-        <AppCard key={app.id} app={app} onOpen={openApp} currentPlatform={currentPlatform} />
-      ))}
-    </div>
-  );
-}
-
 export function Explore({ mobile, openApp, currentPlatform }) {
   const { state, dispatch, visibleApps } = useStore();
   return (
     <>
       {mobile && (
-        <div className="search" style={{ margin: '0 16px 14px' }}>
-          <IconSearch size={16} />
+        <div className="search" style={{ margin: '0 16px 12px' }}>
           <input
             value={state.search}
             placeholder="Rechercher une application..."
             onChange={(e) => dispatch({ type: 'search', value: e.target.value })}
           />
-          {state.search && (
-            <button className="search__clear" onClick={() => dispatch({ type: 'search', value: '' })}>
-              x
-            </button>
-          )}
         </div>
       )}
-
-      <div className="section">
-        <div className="section__head">
-          <h2>Catalogue</h2>
-          <span className="count">
-            {visibleApps.length} resultat{visibleApps.length > 1 ? 's' : ''}
-          </span>
-        </div>
-        {visibleApps.length === 0 ? (
-          <EmptyCatalog />
-        ) : (
-          <div className="grid">
-            {visibleApps.map((app) => (
-              <AppCard key={app.id} app={app} onOpen={openApp} currentPlatform={currentPlatform} />
-            ))}
-          </div>
-        )}
+      <div className="sections" style={{ paddingTop: 18 }}>
+        <SectionCard
+          title="Catalogue"
+          subtitle={`${visibleApps.length} resultat${visibleApps.length > 1 ? 's' : ''}`}
+        >
+          {visibleApps.length === 0 ? (
+            <EmptyCatalog />
+          ) : (
+            <div className="grid" style={{ padding: '0 8px 12px' }}>
+              {visibleApps.map((app) => (
+                <Card key={app.id} app={app} onOpen={openApp} currentPlatform={currentPlatform} />
+              ))}
+            </div>
+          )}
+        </SectionCard>
       </div>
     </>
   );
@@ -133,87 +174,86 @@ export function Updates({ openApp, currentPlatform }) {
   const { state } = useStore();
   const updates = state.apps.filter((a) => a.needsUpdate);
   return (
-    <div className="section">
-      <div className="section__head">
-        <IconUpdate size={17} />
-        <h2>Mises a jour disponibles</h2>
-        <span className="count">{updates.length}</span>
-      </div>
-      {updates.length === 0 ? (
-        <div className="empty">
-          <div className="empty__icon">
-            <IconUpdate size={26} />
+    <div className="sections" style={{ paddingTop: 18 }}>
+      <SectionCard
+        title="Mises a jour disponibles"
+        subtitle={
+          updates.length
+            ? `${updates.length} application(s) en attente`
+            : 'Rien a installer pour le moment'
+        }
+      >
+        {updates.length === 0 ? (
+          <div className="empty">
+            <div className="empty__icon">
+              <IconUpdate size={26} />
+            </div>
+            <h3>Tout est a jour</h3>
+            <p>
+              Celsius compare la derniere release GitHub de chaque app avec la version installee
+              chez toi.
+            </p>
           </div>
-          <h3>Tout est a jour</h3>
-          <p>
-            Celsius compare la derniere release GitHub de chaque app avec la version installee
-            chez toi. Rien a installer pour le moment.
-          </p>
-        </div>
-      ) : (
-        <div className="grid grid--wide">
-          {updates.map((app) => (
-            <AppCard key={app.id} app={app} onOpen={openApp} currentPlatform={currentPlatform} />
-          ))}
-        </div>
-      )}
+        ) : (
+          <div className="grid" style={{ padding: '0 8px 12px' }}>
+            {updates.map((app) => (
+              <Card key={app.id} app={app} onOpen={openApp} currentPlatform={currentPlatform} />
+            ))}
+          </div>
+        )}
+      </SectionCard>
     </div>
   );
 }
 
-export function Library({ openApp, currentPlatform }) {
-  const { library, dispatch, detectInstalled, state } = useStore();
+export function Library({ openApp, currentPlatform, onNavigate }) {
+  const { library, detectInstalled, state } = useStore();
   return (
-    <div className="section">
-      <div className="section__head">
-        <h2>Mes applications</h2>
-        <span className="count">{library.length}</span>
-        <button
-          className="section__action"
-          onClick={() => dispatch({ type: 'view', view: 'settings' })}
-        >
-          Gerer la bibliotheque
-        </button>
-      </div>
-      {library.length === 0 ? (
-        <div className="empty">
-          <div className="empty__icon">
-            <IconBox size={26} />
+    <div className="sections" style={{ paddingTop: 18 }}>
+      <SectionCard
+        title="Mes applications"
+        subtitle={`${library.length} application(s) sur cet appareil`}
+        more="Reglages"
+        onMore={() => onNavigate('settings')}
+      >
+        {library.length === 0 ? (
+          <div className="empty">
+            <div className="empty__icon">
+              <IconBox size={26} />
+            </div>
+            <h3>Bibliotheque vide</h3>
+            <p>
+              Les applications installees depuis Celsius apparaissent ici. Si tu penses en avoir deja
+              installe certaines, rescanne le disque.
+            </p>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+              <button
+                className="btn btn--ghost"
+                onClick={detectInstalled}
+                disabled={Boolean(state.busy.detect)}
+              >
+                {state.busy.detect ? <span className="spinner" /> : null}
+                Rechercher les apps installees
+              </button>
+              <button className="btn btn--primary" onClick={() => onNavigate('explore')}>
+                Parcourir le catalogue
+              </button>
+            </div>
           </div>
-          <h3>Bibliotheque vide</h3>
-          <p>
-            Les applications que tu installes depuis Celsius apparaissent ici. Si tu penses en avoir
-            deja installe certaines, rescanne le disque.
-          </p>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-            <button
-              className="btn btn--ghost"
-              onClick={detectInstalled}
-              disabled={Boolean(state.busy.detect)}
-            >
-              {state.busy.detect ? <span className="spinner" /> : null}
-              Rechercher les apps installees
-            </button>
-            <button
-              className="btn btn--primary"
-              onClick={() => dispatch({ type: 'view', view: 'explore' })}
-            >
-              Parcourir le catalogue
-            </button>
+        ) : (
+          <div className="grid" style={{ padding: '0 8px 12px' }}>
+            {library.map((app) => (
+              <Card key={app.id} app={app} onOpen={openApp} currentPlatform={currentPlatform} />
+            ))}
           </div>
-        </div>
-      ) : (
-        <div className="grid">
-          {library.map((app) => (
-            <AppCard key={app.id} app={app} onOpen={openApp} currentPlatform={currentPlatform} />
-          ))}
-        </div>
-      )}
+        )}
+      </SectionCard>
     </div>
   );
 }
 
 export function EmptyCatalog() {
+  const { dispatch } = useStore();
   return (
     <div className="empty">
       <div className="empty__icon">
@@ -221,9 +261,14 @@ export function EmptyCatalog() {
       </div>
       <h3>Aucune application</h3>
       <p>
-        Le catalogue est defini dans <span className="kbd">public/apps.json</span> du depot. Ajoute
-        une entree, puis utilise « Recharger le catalogue » dans les reglages.
+        Le catalogue est defini dans <span className="kbd">public/apps.json</span> du depot. Ajoute une
+        entree, puis utilise « Recharger le catalogue » dans les reglages.
       </p>
+      <button className="btn btn--primary" onClick={() => dispatch({ type: 'view', view: 'settings' })}>
+        <IconDownload size={15} /> Recharger le catalogue
+      </button>
     </div>
   );
 }
+
+export { IconAndroid, IconStar, IconWindows };
